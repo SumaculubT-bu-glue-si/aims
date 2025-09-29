@@ -1,0 +1,171 @@
+version: '3.8'
+
+services:
+  # MySQL Database
+  database:
+    image: mysql:8.0
+    container_name: mysql_db_prod
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: admin123
+      MYSQL_DATABASE: studio_db
+      MYSQL_USER: admin_user
+      MYSQL_PASSWORD: admin123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data_prod:/var/lib/mysql
+      - ./database/init:/docker-entrypoint-initdb.d
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "${DB_USERNAME}", "-p${DB_PASSWORD}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Laravel Backend
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: laravel_backend_prod
+    restart: unless-stopped
+    expose:
+      - "9000"
+    volumes:
+      - ./server:/var/www/html
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      - DB_HOST=database
+      - DB_PORT=3306
+      - DB_DATABASE=studio_db
+      - DB_USERNAME=admin_user
+      - DB_PASSWORD=admin123
+      - APP_ENV=production
+      - APP_DEBUG=false
+    networks:
+      - app-network
+    command: >
+      bash -c "
+        echo 'Waiting for database...' &&
+        until nc -z database 3306; do sleep 1; done &&
+        echo 'Database ready!' &&
+        composer install --no-dev --optimize-autoloader &&
+        php artisan key:generate --force &&
+        php artisan migrate --force &&
+        php artisan config:cache &&
+        php artisan route:cache &&
+        php artisan view:cache &&
+        php artisan serve --host=0.0.0.0 --port=9000
+      "
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Next.js Frontend
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.prod
+    container_name: nextjs_frontend_prod
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./client:/app
+      - node_modules_client_prod:/app/node_modules
+    depends_on:
+      - backend
+    environment:
+      - NEXT_PUBLIC_API_URL=https://assetwise.glue-si.com/api
+      - NEXT_PUBLIC_GRAPHQL_URL=http://backend:9000/api/graphql
+    networks:
+      - app-network
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: nginx_proxy_prod
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - app-network
+
+  # GWS User Sync Service (runs once at startup)
+  gws-sync:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: gws_sync_prod
+    restart: "no"
+    volumes:
+      - ./server:/var/www/html
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      - DB_HOST=database
+      - DB_PORT=3306
+      - DB_DATABASE=studio_db
+      - DB_USERNAME=admin_user
+      - DB_PASSWORD=admin123
+    networks:
+      - app-network
+    command: >
+      bash -c "
+        echo 'Waiting for backend to be ready...' &&
+        until curl -f http://backend:9000; do sleep 5; done &&
+        echo 'Backend ready! Running GWS sync once...' &&
+        php artisan gws:sync-users bu.glue-si.com --all &&
+        echo 'GWS sync completed successfully!' &&
+        exit 0
+      "
+
+  # Queue Worker Service
+  queue-worker:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: queue_worker_prod
+    restart: unless-stopped
+    volumes:
+      - ./server:/var/www/html
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      - DB_HOST=database
+      - DB_PORT=3306
+      - DB_DATABASE=studio_db
+      - DB_USERNAME=admin_user
+      - DB_PASSWORD=admin123
+    networks:
+      - app-network
+    command: >
+      bash -c "
+        echo 'Waiting for backend to be ready...' &&
+        until curl -f http://backend:9000; do sleep 5; done &&
+        echo 'Backend ready! Starting queue worker...' &&
+        php artisan queue:work --daemon
+      "
+
+volumes:
+  mysql_data_prod:
+  node_modules_client_prod:
+
+networks:
+  app-network:
+    driver: bridge
