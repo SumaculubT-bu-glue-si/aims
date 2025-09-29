@@ -71,7 +71,7 @@ services:
   frontend:
     build:
       context: ./client
-      dockerfile: Dockerfile.prod
+      dockerfile: Dockerfile
     container_name: nextjs_frontend_prod
     restart: unless-stopped
     ports:

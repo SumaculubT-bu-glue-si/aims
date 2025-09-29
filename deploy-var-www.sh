@@ -27,3 +27,4 @@ docker-compose -f docker-compose.prod.yml up -d --build
 
 echo "✅ Deployment complete!"
 echo "🌐 Application available at: https://assetwise.glue-si.com"
+certbot certonly --standalone -d assetwise.glue-si.com -d www.assetwise.glue-si.com --non-interactive --agree-tos --email sumaculub_t@glue-si.com
