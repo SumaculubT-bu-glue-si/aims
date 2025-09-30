@@ -1,5 +1,5 @@
 // GraphQL client utility for communicating with Laravel GraphQL API
-const GRAPHQL_ENDPOINT = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://backend:9000/api/graphql';
+const GRAPHQL_ENDPOINT = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'https://assetwise.glue-si.com/api/graphql';
 
 // Type definitions for GraphQL operations
 export interface EmployeeInput {

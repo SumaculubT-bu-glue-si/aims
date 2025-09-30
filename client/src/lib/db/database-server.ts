@@ -9,7 +9,7 @@ class DatabaseServer {
 
   constructor() {
     this.dbPath = path.join(process.cwd(), 'src', 'lib', 'db', 'data');
-    this.apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9000';
+    this.apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://assetwise.glue-si.com/api';
   }
 
   async initializeCollections(): Promise<void> {
