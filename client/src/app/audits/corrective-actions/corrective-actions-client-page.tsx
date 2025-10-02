@@ -555,7 +555,7 @@ export default function CorrectiveActionsClientPage() {
 
       // Send reminders for all actions at once using the bulk API
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost/api'}/send-corrective-action-reminders`, {
+        const response = await fetch('http://localhost:8000/api/send-corrective-action-reminders', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

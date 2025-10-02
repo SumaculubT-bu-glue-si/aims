@@ -15,7 +15,7 @@ export async function GET(
     }
 
     // Forward the request to the Laravel backend
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://backend:9000/api'}/employee-audits/history/${token}`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/employee-audits/history/${token}`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

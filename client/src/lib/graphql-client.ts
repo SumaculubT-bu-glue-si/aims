@@ -1,5 +1,5 @@
 // GraphQL client utility for communicating with Laravel GraphQL API
-const GRAPHQL_ENDPOINT = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://backend:9000/api/graphql';
+const GRAPHQL_ENDPOINT = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:8000/api/graphql';
 
 // Type definitions for GraphQL operations
 export interface EmployeeInput {
@@ -805,7 +805,13 @@ export async function createAuditPlan(auditPlanData: {
             user_id
           }
         }
-        calendar_events
+        calendar_events {
+          id
+          title
+          created_at
+          attendees_count
+          location
+        }
       }
     }
   `;
@@ -1009,7 +1015,13 @@ export async function getAuditPlans() {
               }
             }
           }
-          calendar_events
+          calendar_events {
+            id
+            title
+            created_at
+            attendees_count
+            location
+          }
         }
       }
     }

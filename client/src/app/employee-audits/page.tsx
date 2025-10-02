@@ -48,7 +48,7 @@ export default function EmployeeAuditsPage() {
       
       if (response.ok) {
         const data = await response.json()
-        setAuditPlans(data.auditPlans || [])
+        setAuditPlans(data.data?.auditPlans || [])
         
         if (data.auditPlans && data.auditPlans.length === 0) {
           console.warn('No audit plans returned from API')
@@ -101,17 +101,17 @@ export default function EmployeeAuditsPage() {
 
       if (response.ok) {
         if (data.success) {
-          if (data.email_sent) {
+          if (data.data?.email_sent) {
             // Email was sent successfully
             setEmailSent(true)
             setSuccessMessage(data.message)
             setShowAccessLink(true)
             setAccessLink('') // No need to show access link since email was sent
-          } else if (data.accessUrl) {
+          } else if (data.data?.accessUrl) {
             // Email failed but access URL provided as fallback
             setEmailSent(false)
             setSuccessMessage(data.message)
-            setAccessLink(data.accessUrl)
+            setAccessLink(data.data.accessUrl)
             setShowAccessLink(true)
           } else {
             setShowNoAudits(true)
@@ -130,7 +130,8 @@ export default function EmployeeAuditsPage() {
         } else if (response.status === 500) {
           setError('Server error. Please try again later or contact support.')
         } else {
-          setError(data.message || `Failed to request access (Status: ${response.status})`)
+          const errorMessage = data.message || `Failed to request access (Status: ${response.status})`
+          setError(errorMessage)
         }
       }
     } catch (error) {
@@ -365,10 +366,20 @@ export default function EmployeeAuditsPage() {
               </div>
               <CardTitle className="text-xl font-semibold text-gray-900">Email Not Found</CardTitle>
               <CardDescription>
-                The email address you entered is not registered in our system.
+                The email address <strong>{email}</strong> is not registered in our system.
+                <br /><br />
+                Please check your email address or contact your administrator to be added to the system.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
+              <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+                <strong>Common solutions:</strong>
+                <ul className="mt-2 space-y-1">
+                  <li>• Check for typos in your email address</li>
+                  <li>• Try using a different email address</li>
+                  <li>• Contact your IT administrator</li>
+                </ul>
+              </div>
               <Button 
                 variant="outline" 
                 onClick={resetForm}

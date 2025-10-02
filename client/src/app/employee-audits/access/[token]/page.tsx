@@ -194,17 +194,17 @@ export default function EmployeeAuditAccessPage() {
       }
 
       const data = await response.json()
-      setAuditData(data)
-      setUserRole(data.role)
-      
+      setAuditData(data.data)
+      setUserRole(data.data?.role)
+
+      setPlanAssets(data.data?.audit_assets || [])      
       // Automatically set the selected plan and load assets
-      if (data.selectedPlan) {
-        setSelectedPlan(data.selectedPlan)
-        setPlanAssets(data.auditAssets)
+      if (data.data?.audit_plan) {
+        setSelectedPlan(data.data?.audit_plan)
       }
+      setIsLoading(false)
     } catch (error) {
-      setError("Network error. Please check your connection and try again.")
-    } finally {
+      setError("Failed to fetch audit data. Please try again.")
       setIsLoading(false)
     }
   }
@@ -478,8 +478,15 @@ export default function EmployeeAuditAccessPage() {
     }
   }
 
-     // Filter assets based on search, status, and audit status
+     // Filter assets based on search, status, audit status, AND user role
    const filteredAssets = planAssets.filter(asset => {
+      // ROLE-BASED FILTERING: Most important filter first
+    const matchesRole = userRole?.isAuditor 
+      ? true // Auditors see ALL assets
+      : asset.current_user === auditData?.employee.name // Employees see only their assets
+
+    if (!matchesRole) return false
+
      const matchesSearch = asset.asset_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           asset.model.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (asset.original_user || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -725,23 +732,25 @@ export default function EmployeeAuditAccessPage() {
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
             <div className="text-center p-6 rounded-md border border-gray-200">
               <div className="text-3xl font-bold text-gray-900 mb-2">{filteredAssets.length || 0}</div>
-              <div className="text-sm font-medium text-gray-600">Total Assets</div>
+              <div className="text-sm font-medium text-gray-600">
+                {userRole?.isAuditor ? 'Total Assets' : 'My Assets'}
+              </div>
             </div>
             <div className="text-center p-6 rounded-md border border-gray-200">
               <div className="text-3xl font-bold text-gray-900 mb-2">
-                {planAssets.filter(asset => asset.audit_status).length}
+                {filteredAssets.filter(asset => asset.audit_status).length}
               </div>
               <div className="text-sm font-medium text-gray-600">Assets Audited</div>
             </div>
             <div className="text-center p-6 rounded-md border border-gray-200">
               <div className="text-2xl font-bold text-gray-900 mb-2">
-                {selectedPlan ? Math.round((planAssets.filter(asset => asset.audit_status).length / planAssets.length) * 100) : 0}%
+                {filteredAssets.length > 0 ? Math.round((filteredAssets.filter(asset => asset.audit_status).length / filteredAssets.length) * 100) : 0}%
               </div>
               <div className="text-sm font-medium text-gray-600">Audit Progress</div>
             </div>
             <div className="text-center p-6 rounded-md border border-gray-200">
               <div className="text-2xl font-bold text-gray-900 mb-2">
-                {planAssets.filter(asset => !asset.audit_status).length}
+                {filteredAssets.filter(asset => !asset.audit_status).length}
               </div>
               <div className="text-sm font-medium text-gray-600">Pending Audit</div>
             </div>

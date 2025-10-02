@@ -574,6 +574,24 @@ input UserInput {
     password: String
 }
 
+"Calendar event for audit plans."
+type CalendarEvent {
+    "Unique identifier for the calendar event."
+    id: String!
+
+    "Title of the calendar event."
+    title: String!
+
+    "When the event was created."
+    created_at: String!
+
+    "Number of attendees."
+    attendees_count: Int!
+
+    "Location of the event."
+    location: String
+}
+
 "Audit plan in the system."
 type AuditPlan {
     "Unique primary key."
@@ -596,6 +614,18 @@ type AuditPlan {
 
     "Description of the audit plan."
     description: String
+
+    "Calendar events created for this audit plan."
+    calendar_events: [CalendarEvent!]
+
+    "Google Chat space ID for this audit plan."
+    chat_space_id: String
+
+    "Google Chat space name for this audit plan."
+    chat_space_name: String
+
+    "When the chat space was created."
+    chat_space_created_at: DateTime
 
     "When the audit plan was created."
     created_at: DateTime!

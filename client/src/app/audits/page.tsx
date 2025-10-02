@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo, useCallback, useRef, memo } from "react"
@@ -60,7 +59,13 @@ export type AuditPlan = {
   progress: number;
   items: AuditItem[];
   assignments: AuditAssignment[];
-  calendar_events?: string[];
+  calendar_events?: Array<{
+    id: string;
+    title: string;
+    created_at: string;
+    attendees_count: number;
+    location?: string;
+  }>;
 };
 
 function useAuditPlanSchema() {

@@ -5,7 +5,6 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useRouter } from "next/navigation"
 
-import { getPcs, savePc, deletePc } from "./actions"
 import { getPcsFromGraphQL, getMonitorsFromGraphQL, getPhonesFromGraphQL, getOthersFromGraphQL, getAllAssetsFromGraphQL, getMasterDataFromGraphQL, bulkUpsertPcsToGraphQL, bulkUpsertMonitorsToGraphQL, bulkUpsertPhonesToGraphQL, bulkUpsertOthersToGraphQL, bulkUpsertMixedAssetsToGraphQL, deletePcFromGraphQL, deleteMonitorFromGraphQL, deletePhoneFromGraphQL } from "./graphql-actions"
 import { pcSchema, type PcFormValues, type PcAsset } from "@/lib/schemas/inventory"
 import { type AssetField } from "@/lib/schemas/settings"
@@ -85,6 +84,7 @@ import { Progress } from "@/components/ui/progress"
 import { buttonVariants } from "@/components/ui/button"
 import { Pagination } from "@/components/ui/pagination"
 import { cn } from "@/lib/utils"
+import { type Employee, type Project, type Location } from '@/lib/schemas/inventory';
 
 type InventoryClientPageProps = {
   initialPcs: PcAsset[];
@@ -1687,7 +1687,7 @@ export default function InventoryClientPage({
         </TabsList>
 
         <TabsContent value="pcs" className="relative flex-grow flex flex-col">
-          <div className="h-[450px] w-full overflow-auto border rounded-md">
+          <div className="mt-2 h-[450px] w-full overflow-auto border rounded-md">
             <Table>
               <TableHeader className="sticky top-0 bg-background z-20">
                 <TableRow>
@@ -1788,7 +1788,7 @@ export default function InventoryClientPage({
           </div>
         </TabsContent>
         <TabsContent value="monitors" className="relative flex-grow flex flex-col">
-          <div className="h-[450px] w-full overflow-auto border rounded-md">
+          <div className="mt-2 h-[450px] w-full overflow-auto border rounded-md">
             <Table>
               <TableHeader className="sticky top-0 bg-background z-20">
                 <TableRow>
@@ -1889,7 +1889,7 @@ export default function InventoryClientPage({
           </div>
         </TabsContent>
         <TabsContent value="smartphones" className="relative flex-grow flex flex-col">
-          <div className="h-[450px] w-full overflow-auto border rounded-md">
+          <div className="mt-2 h-[450px] w-full overflow-auto border rounded-md">
             <Table>
               <TableHeader className="sticky top-0 bg-background z-20">
                 <TableRow>
@@ -1990,7 +1990,7 @@ export default function InventoryClientPage({
           </div>
         </TabsContent>
         <TabsContent value="others" className="relative flex-grow flex flex-col">
-          <div className="h-[450px] w-full overflow-auto border rounded-md">
+          <div className="mt-2 h-[450px] w-full overflow-auto border rounded-md">
             <Table>
               <TableHeader className="sticky top-0 bg-background z-20">
                 <TableRow>
