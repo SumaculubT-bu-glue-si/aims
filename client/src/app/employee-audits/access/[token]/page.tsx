@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
+import { graphqlQuery } from "@/lib/graphql-client"
 import { 
   Loader, AlertCircle, CheckCircle, XCircle, FileText, MapPin, User, 
   Search, Filter, Download, Edit3, Eye, CheckSquare, Square, 
@@ -180,30 +181,79 @@ export default function EmployeeAuditAccessPage() {
 
   const fetchAuditData = async () => {
     try {
-      const response = await fetch(`/api/employee-audits/access/${token}`)
+      const query = `
+        query GetEmployeeAuditAccess($token: String!) {
+          employeeAuditAccess(token: $token) {
+            success
+            message
+            employee {
+              id
+              name
+              email
+            }
+            selectedPlan {
+              id
+              name
+              start_date
+              due_date
+              progress
+              total_assets
+              completed_assets
+            }
+            auditAssets {
+              id
+              asset_id
+              asset_type
+              model
+              original_user
+              original_location
+              current_user
+              current_location
+              status
+              audit_status
+              notes
+              audited_at
+              resolved
+            }
+            role {
+              isAuditor
+              assignedLocation
+              canAuditAllAssets
+              description
+            }
+          }
+        }
+      `
+
+      const result = await graphqlQuery(query, { token })
       
-      if (!response.ok) {
-        if (response.status === 401) {
+      if (!result.data?.employeeAuditAccess.success) {
+        if (result.data?.employeeAuditAccess.message.includes('expired') || result.data?.employeeAuditAccess.message.includes('invalid')) {
           setExpired(true)
         } else {
-          const errorData = await response.json()
-          setError(errorData.message || "Failed to fetch audit data")
+          setError(result.data?.employeeAuditAccess.message || "Failed to fetch audit data")
         }
         setIsLoading(false)
         return
       }
 
-      const data = await response.json()
-      setAuditData(data.data)
-      setUserRole(data.data?.role)
+      const data = result.data.employeeAuditAccess
+      setAuditData({
+        employee: data.employee,
+        selectedPlan: data.selectedPlan,
+        auditAssets: data.auditAssets || [],
+        role: data.role
+      })
+      setUserRole(data.role)
 
-      setPlanAssets(data.data?.audit_assets || [])      
+      setPlanAssets(data.auditAssets || [])      
       // Automatically set the selected plan and load assets
-      if (data.data?.audit_plan) {
-        setSelectedPlan(data.data?.audit_plan)
+      if (data.selectedPlan) {
+        setSelectedPlan(data.selectedPlan)
       }
       setIsLoading(false)
     } catch (error) {
+      console.error('GraphQL error:', error)
       setError("Failed to fetch audit data. Please try again.")
       setIsLoading(false)
     }
@@ -214,24 +264,77 @@ export default function EmployeeAuditAccessPage() {
   const updateAssetStatus = async (assetId: string, status: string, notes?: string, reassignUserId?: string) => {
     try {
       setIsUpdating(true)
-      const response = await fetch(`/api/employee-audits/update-asset/${token}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ assetId, status, notes, reassignUserId }),
+      
+      const mutation = `
+        mutation UpdateAssetStatus(
+          $token: String!
+          $assetId: ID!
+          $status: String!
+          $notes: String
+          $reassignUserId: ID
+        ) {
+          updateAssetStatus(
+            token: $token
+            assetId: $assetId
+            status: $status
+            notes: $notes
+            reassignUserId: $reassignUserId
+          ) {
+            success
+            message
+            asset {
+              id
+              audit_status
+              current_status
+              notes
+              audited_at
+              audited_by
+              location_changed
+              user_changed
+              user_assigned
+            }
+            main_asset_updated
+            user_assignment {
+              old_user_id
+              new_user_id
+              new_user_name
+            }
+            changes_detected {
+              location
+              user
+            }
+          }
+        }
+      `
+
+      const result = await graphqlQuery(mutation, {
+        token,
+        assetId,
+        status,
+        notes,
+        reassignUserId
       })
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || `HTTP ${response.status}: Failed to update asset status`)
+      if (result.data?.updateAssetStatus.success) {
+        // Refresh audit data
+        await fetchAuditData()
+        setShowStatusModal(false)
+        setStatusUpdateData({ assetId: "", status: "", notes: "", reassignUserId: undefined })
+      } else {
+        const errorMessage = result.data?.updateAssetStatus.message || 'Failed to update asset status'
+        
+        // Handle specific error cases
+        if (errorMessage.includes('already been resolved')) {
+          setError("This asset has already been resolved and cannot be updated. Please contact your administrator if you need to make changes.")
+        } else if (errorMessage.includes('expired') || errorMessage.includes('invalid')) {
+          setError("Your access token has expired or is invalid. Please request a new access link.")
+        } else {
+          setError(errorMessage)
+        }
+        return // Don't throw error, just show the specific message
       }
-
-             // Refresh audit data
-       await fetchAuditData()
-       setShowStatusModal(false)
-       setStatusUpdateData({ assetId: "", status: "", notes: "", reassignUserId: undefined })
     } catch (error) {
+      console.error('Failed to update asset status:', error)
       setError("Failed to update asset status. Please try again.")
     } finally {
       setIsUpdating(false)
@@ -266,6 +369,12 @@ export default function EmployeeAuditAccessPage() {
   }
 
   const openStatusModal = async (asset: AuditAsset) => {
+    // Prevent opening modal for resolved assets
+    if (asset.resolved) {
+      setError("This asset has already been resolved and cannot be updated. Please contact your administrator if you need to make changes.")
+      return
+    }
+    
     setSelectedAsset(asset)
     setStatusUpdateData({
       assetId: asset.id,
@@ -367,18 +476,54 @@ export default function EmployeeAuditAccessPage() {
     if (!auditData?.employee.id || !selectedPlan?.id) return
     
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-      const response = await fetch(`${backendUrl}/api/employee-audits/corrective-actions?employee_id=${auditData.employee.id}&audit_plan_id=${selectedPlan.id}`)
-      if (response.ok) {
-        const data = await response.json()
-        setCorrectiveActions(data.actions || [])
+      const query = `
+        query GetCorrectiveActions($employee_id: ID!, $audit_plan_id: ID!) {
+          employeeCorrectiveActions(employee_id: $employee_id, audit_plan_id: $audit_plan_id) {
+            success
+            message
+            actions {
+              id
+              audit_asset_id
+              issue
+              action
+              assigned_to
+              priority
+              status
+              due_date
+              completed_date
+              notes
+              created_at
+              updated_at
+              asset {
+                asset_id
+                model
+                location
+              }
+            }
+            role {
+              isAuditor
+              assignedLocation
+              canSeeAllActions
+              description
+            }
+          }
+        }
+      `
+
+      const result = await graphqlQuery(query, {
+        employee_id: auditData.employee.id,
+        audit_plan_id: selectedPlan.id
+      })
+
+      if (result.data?.employeeCorrectiveActions.success) {
+        setCorrectiveActions(result.data.employeeCorrectiveActions.actions || [])
         
         // Update user role if it includes corrective actions role info
-        if (data.role) {
-          setUserRole(prev => prev ? { ...prev, ...data.role } : data.role)
+        if (result.data.employeeCorrectiveActions.role) {
+          setUserRole(prev => prev ? { ...prev, ...result.data.employeeCorrectiveActions.role } : result.data.employeeCorrectiveActions.role)
         }
       } else {
-        console.error('Failed to fetch corrective actions:', response.status)
+        console.error('Failed to fetch corrective actions:', result.data?.employeeCorrectiveActions.message)
         setCorrectiveActions([])
       }
     } catch (error) {
@@ -390,27 +535,20 @@ export default function EmployeeAuditAccessPage() {
   const updateCorrectiveActionStatus = async (actionId: string, status: string, notes: string) => {
     try {
       setIsUpdatingAction(true)
-      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-      const response = await fetch(`${backendUrl}/api/employee-audits/update-action-status`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action_id: actionId,
-          status,
-          notes,
-          employee_id: auditData?.employee.id
-        }),
-      })
+      const { updateEmployeeCorrectiveActionStatus } = await import('@/lib/graphql-client')
+      const result = await updateEmployeeCorrectiveActionStatus(
+        actionId,
+        status,
+        notes,
+        auditData?.employee.id || ''
+      )
 
-      if (response.ok) {
+      if (result.success) {
         // Refresh corrective actions
         await fetchCorrectiveActions()
         return true
       } else {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to update action status')
+        throw new Error(result.error || 'Failed to update action status')
       }
     } catch (error) {
       console.error('Failed to update action status:', error)
@@ -1083,6 +1221,11 @@ export default function EmployeeAuditAccessPage() {
                                  <Badge className={`${asset.audit_status ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'} font-medium px-2 py-1 text-xs`}>
                                    {asset.audit_status ? 'Audited' : 'Pending Audit'}
                                  </Badge>
+                                 {asset.resolved && (
+                                   <Badge className="bg-purple-100 text-purple-800 font-medium px-2 py-1 text-xs">
+                                     ✓ Resolved
+                                   </Badge>
+                                 )}
                                </div>
                              </div>
                              <CardDescription className="text-sm text-gray-600 pl-8">
@@ -1148,10 +1291,15 @@ export default function EmployeeAuditAccessPage() {
                                  variant="default"
                                  size="sm"
                                  onClick={() => openStatusModal(asset)}
-                                 className="flex-1 h-10 bg-blue-600 hover:bg-blue-700"
+                                 disabled={asset.resolved}
+                                 className={`flex-1 h-10 ${
+                                   asset.resolved 
+                                     ? 'bg-gray-400 hover:bg-gray-400 cursor-not-allowed' 
+                                     : 'bg-blue-600 hover:bg-blue-700'
+                                 }`}
                                >
                                  <Edit3 className="w-4 h-4 mr-2" />
-                                 Update Status
+                                 {asset.resolved ? 'Already Resolved' : 'Update Status'}
                                </Button>
                              </div>
                            </CardContent>

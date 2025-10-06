@@ -1,5 +1,5 @@
 // GraphQL client utility for communicating with Laravel GraphQL API
-const GRAPHQL_ENDPOINT = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:8000/api/graphql';
+const GRAPHQL_ENDPOINT = https://assetwise.glue-si.com/api/graphql || 'http://localhost:8000/api/graphql';
 
 // Type definitions for GraphQL operations
 export interface EmployeeInput {
@@ -1673,4 +1673,153 @@ export interface UserInput {
   name: string;
   email: string;
   password?: string;
+}
+
+// Employee Corrective Actions functions
+export async function getEmployeeCorrectiveActions(employeeId: string, auditPlanId: string) {
+  const query = `
+    query GetEmployeeCorrectiveActions($employee_id: ID!, $audit_plan_id: ID!) {
+      employeeCorrectiveActions(
+        employee_id: $employee_id
+        audit_plan_id: $audit_plan_id
+      ) {
+        id
+        audit_asset_id
+        audit_plan_id
+        issue
+        action
+        assigned_to
+        priority
+        status
+        due_date
+        completed_date
+        notes
+        created_at
+        updated_at
+        auditAsset {
+          id
+          current_status
+          original_location
+          original_user
+          current_location
+          current_user
+          asset {
+            id
+            asset_id
+            model
+            location
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    const response = await fetch(GRAPHQL_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({ 
+        query, 
+        variables: { 
+          employee_id: employeeId,
+          audit_plan_id: auditPlanId
+        } 
+      }),
+    });
+
+    const result = await response.json();
+
+    if (result.errors) {
+      throw new Error(result.errors[0]?.message || 'Failed to fetch employee corrective actions');
+    }
+
+    return { success: true, data: result.data.employeeCorrectiveActions };
+  } catch (error) {
+    console.error('Error fetching employee corrective actions:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to fetch employee corrective actions' 
+    };
+  }
+}
+
+export async function updateEmployeeCorrectiveActionStatus(
+  actionId: string, 
+  status: string, 
+  notes: string, 
+  employeeId: string
+) {
+  const mutation = `
+    mutation UpdateEmployeeCorrectiveActionStatus(
+      $action_id: ID!
+      $status: String!
+      $notes: String
+      $employee_id: ID!
+    ) {
+      updateEmployeeCorrectiveActionStatus(
+        action_id: $action_id
+        status: $status
+        notes: $notes
+        employee_id: $employee_id
+      ) {
+        success
+        message
+        action {
+          id
+          audit_asset_id
+          issue
+          action
+          assigned_to
+          priority
+          status
+          due_date
+          completed_date
+          notes
+          created_at
+          updated_at
+          asset {
+            asset_id
+            model
+            location
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    const response = await fetch(GRAPHQL_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        query: mutation,
+        variables: {
+          action_id: actionId,
+          status,
+          notes,
+          employee_id: employeeId
+        },
+      }),
+    });
+
+    const result = await response.json();
+
+    if (result.errors) {
+      throw new Error(result.errors[0]?.message || 'Failed to update corrective action status');
+    }
+
+    return { success: true, data: result.data.updateEmployeeCorrectiveActionStatus };
+  } catch (error) {
+    console.error('Error updating corrective action status:', error);
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Failed to update corrective action status' 
+    };
+  }
 }

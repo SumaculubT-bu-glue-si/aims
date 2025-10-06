@@ -32,43 +32,96 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    // Call the backend API to update asset status
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-    console.log("Environment variables:", {
-      NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL,
-      NODE_ENV: process.env.NODE_ENV,
-      backendUrl: backendUrl
-    })
-    console.log("Full request URL:", `${backendUrl}/api/employee-audits/update-asset/${token}`)
-    console.log("Sending to Laravel:", { assetId, status, notes })
+    // Use GraphQL to update asset status
+    const graphqlUrl = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:8000/api/graphql'
+    const mutation = `
+      mutation UpdateAssetStatus($token: String!, $assetId: ID!, $status: String!, $notes: String) {
+        updateAssetStatus(token: $token, assetId: $assetId, status: $status, notes: $notes) {
+          success
+          message
+          asset {
+            id
+            audit_status
+            current_status
+            notes
+            audited_at
+            audited_by
+            location_changed
+            user_changed
+            user_assigned
+          }
+          main_asset_updated
+          user_assignment {
+            old_user_id
+            new_user_id
+            new_user_name
+          }
+          changes_detected {
+            location
+            user
+          }
+        }
+      }
+    `
+
+    console.log("Using GraphQL mutation for asset update:", { token, assetId, status, notes })
     
-    const response = await fetch(`${backendUrl}/api/employee-audits/update-asset/${token}`, {
-      method: "PUT",
+    const response = await fetch(graphqlUrl, {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ assetId, status, notes }),
+      body: JSON.stringify({
+        query: mutation,
+        variables: { token, assetId, status, notes }
+      }),
     })
     
-    console.log("Laravel response status:", response.status)
-    console.log("Laravel response ok:", response.ok)
+    console.log("GraphQL response status:", response.status)
+    console.log("GraphQL response ok:", response.ok)
 
     if (!response.ok) {
-      if (response.status === 401) {
+      return NextResponse.json(
+        { message: "Failed to update asset status" },
+        { status: response.status }
+      )
+    }
+
+    const result = await response.json()
+    
+    if (result.errors) {
+      return NextResponse.json(
+        { message: result.errors[0]?.message || "GraphQL error" },
+        { status: 400 }
+      )
+    }
+
+    const data = result.data.updateAssetStatus
+    
+    if (!data.success) {
+      if (data.message.includes('expired') || data.message.includes('invalid')) {
         return NextResponse.json(
           { message: "Access token expired or invalid" },
           { status: 401 }
         )
       }
       
-      const errorData = await response.json()
+      if (data.message.includes('already been resolved')) {
+        return NextResponse.json(
+          { 
+            message: "This asset has already been resolved and cannot be updated. Please contact your administrator if you need to make changes.",
+            errorType: "asset_already_resolved"
+          },
+          { status: 409 } // Conflict status for already resolved assets
+        )
+      }
+      
       return NextResponse.json(
-        { message: errorData.message || "Failed to update asset status" },
-        { status: response.status }
+        { message: data.message || "Failed to update asset status" },
+        { status: 400 }
       )
     }
 
-    const data = await response.json()
     return NextResponse.json(data)
   } catch (error) {
     if (error instanceof z.ZodError) {
