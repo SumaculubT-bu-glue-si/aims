@@ -553,23 +553,43 @@ export default function CorrectiveActionsClientPage() {
       let remindersSent = 0;
       let remindersFailed = 0;
 
-      // Send reminders for all actions at once using the bulk API
+      // Send reminders for specific actions using GraphQL
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost/api'}/send-corrective-action-reminders`, {
+        const actionIds = actionsToRemind.map(action => action.id);
+        
+        const mutation = `
+          mutation SendManualReminders($actionIds: [ID!]!) {
+            sendManualReminders(actionIds: $actionIds) {
+              success
+              message
+              reminders_sent
+              actions_processed
+              details {
+                employees_notified
+                actions_processed
+                errors
+              }
+            }
+          }
+        `;
+
+        const response = await fetch('http://localhost:8000/api/graphql', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            action_ids: actionsToRemind.map(action => action.id)
+          body: JSON.stringify({ 
+            query: mutation,
+            variables: { actionIds }
           }),
         });
 
         if (response.ok) {
           const result = await response.json();
-          if (result.success) {
-            remindersSent = result.total_sent || 0;
-            remindersFailed = result.total_failed || 0;
+          if (result.data?.sendManualReminders?.success) {
+            const data = result.data.sendManualReminders;
+            remindersSent = data.reminders_sent || 0;
+            remindersFailed = actionsToRemind.length - (data.reminders_sent || 0);
           } else {
             remindersFailed = actionsToRemind.length;
           }

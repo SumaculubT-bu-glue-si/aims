@@ -13,14 +13,31 @@ export async function GET(request: NextRequest) {
       )
     }
     
-    // Call the backend API to get available employees for this location
-    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
-    
-    const response = await fetch(`${backendUrl}/api/employees?location=${encodeURIComponent(location)}`, {
-      method: "GET",
+    // Use GraphQL to get employees
+    const graphqlUrl = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:8000/api/graphql'
+    const query = `
+      query GetEmployees($location: String) {
+        employees(location: $location) {
+          id
+          name
+          email
+          location
+          department
+          position
+          status
+        }
+      }
+    `
+
+    const response = await fetch(graphqlUrl, {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
+      body: JSON.stringify({
+        query,
+        variables: { location }
+      }),
     })
 
     if (!response.ok) {
@@ -30,8 +47,17 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const data = await response.json()
-    return NextResponse.json(data)
+    const result = await response.json()
+    
+    if (result.errors) {
+      return NextResponse.json(
+        { message: result.errors[0]?.message || "GraphQL error" },
+        { status: 400 }
+      )
+    }
+
+    const data = result.data.employees
+    return NextResponse.json({ employees: data })
   } catch (error) {
     console.error("Employee fetch error:", error)
     return NextResponse.json(

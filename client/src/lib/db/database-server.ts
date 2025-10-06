@@ -9,7 +9,7 @@ class DatabaseServer {
 
   constructor() {
     this.dbPath = path.join(process.cwd(), 'src', 'lib', 'db', 'data');
-    this.apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://assetwise.glue-si.com/api';
+    this.apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
   }
 
   async initializeCollections(): Promise<void> {
@@ -99,58 +99,283 @@ class DatabaseServer {
   }
 
   private async fetchFromDatabase(collection: string): Promise<any[]> {
-    let endpoint = '';
-    
-    switch (collection) {
-      case 'pcs':
-        endpoint = '/api/assets?type=pc';
-        break;
-      case 'monitors':
-        endpoint = '/assets?type=monitor';
-        break;
-      case 'phones':
-        endpoint = '/assets?type=phone';
-        break;
-      case 'employees':
-        endpoint = '/employees';
-        break;
-      case 'locations':
-        endpoint = '/locations';
-        break;
-      case 'projects':
-        endpoint = '/projects';
-        break;
-      case 'loans':
-        endpoint = '/loans';
-        break;
-      default:
-        throw new Error(`Unknown collection: ${collection}`);
-    }
+    try {
+      let query = '';
+      let variables = {};
 
-    const response = await fetch(`${this.apiBaseUrl}${endpoint}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-    });
+      switch (collection) {
+        case 'pcs':
+          query = `
+            query GetAssets($type: String) {
+              assets(type: $type) {
+                data {
+                  id
+                  type
+                  hostname
+                  manufacturer
+                  model
+                  part_number
+                  serial_number
+                  form_factor
+                  os
+                  os_bit
+                  office_suite
+                  software_license_key
+                  wired_mac_address
+                  wired_ip_address
+                  wireless_mac_address
+                  wireless_ip_address
+                  purchase_date
+                  purchase_price
+                  purchase_price_tax_included
+                  depreciation_years
+                  depreciation_dept
+                  cpu
+                  memory
+                  location
+                  status
+                  previous_user
+                  user_id
+                  usage_start_date
+                  usage_end_date
+                  carry_in_out_agreement
+                  last_updated
+                  updated_by
+                  notes
+                  project
+                  notes1
+                  notes2
+                  notes3
+                  notes4
+                  notes5
+                }
+              }
+            }
+          `;
+          variables = { type: 'pc' };
+          break;
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
+        case 'monitors':
+          query = `
+            query GetAssets($type: String) {
+              assets(type: $type) {
+                data {
+                  id
+                  type
+                  manufacturer
+                  model
+                  serial_number
+                  location
+                  status
+                  user_id
+                  notes
+                }
+              }
+            }
+          `;
+          variables = { type: 'monitor' };
+          break;
 
-    const data = await response.json();
-    
-    // Transform the data to match expected interfaces
-    if (data && Array.isArray(data)) {
-      return data.map(item => this.transformDatabaseItem(collection, item));
+        case 'phones':
+          query = `
+            query GetAssets($type: String) {
+              assets(type: $type) {
+                data {
+                  id
+                  type
+                  manufacturer
+                  model
+                  serial_number
+                  location
+                  status
+                  user_id
+                  notes
+                }
+              }
+            }
+          `;
+          variables = { type: 'smartphones' };
+          break;
+
+        case 'employees':
+          query = `
+            query GetEmployees {
+              employees {
+                data {
+                  id
+                  name
+                  employee_id
+                  email
+                  location
+                  org_unit_path
+                  projects
+                }
+              }
+            }
+          `;
+          variables = {};
+          break;
+
+        case 'locations':
+          query = `
+            query GetLocations {
+              locations {
+                id
+                name
+                address
+                city
+                state
+                country
+                postal_code
+                phone
+                email
+                manager
+                status
+                visible
+                order
+              }
+            }
+          `;
+          variables = {};
+          break;
+
+        case 'projects':
+          query = `
+            query GetProjects {
+              projects {
+                data {
+                  id
+                  name
+                  description
+                  visible
+                  order
+                }
+              }
+            }
+          `;
+          variables = {};
+          break;
+
+        default:
+          throw new Error(`Unknown collection: ${collection}`);
+      }
+
+      const response = await fetch(`${this.apiBaseUrl}/api/graphql`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          query,
+          variables
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const result = await response.json();
+
+      if (result.errors) {
+        throw new Error(`GraphQL errors: ${JSON.stringify(result.errors)}`);
+      }
+      // Extract data based on collection type and pagination structure
+      let data = [];
+      switch (collection) {
+        case 'pcs':
+        case 'monitors':
+        case 'phones':
+          data = result.data?.assets?.data || [];
+          break;
+        case 'employees':
+          data = result.data?.employees?.data || [];
+          break;
+        case 'locations':
+          data = result.data?.locations || [];
+          break;
+        case 'projects':
+          data = result.data?.projects?.data || [];
+          break;
+      }
+      // Transform the data to match expected interfaces
+      return data.map((item: any) => this.transformDatabaseItem(collection, item));
+
+
+    } catch (error) {
+      console.error(`GraphQL fetch failed for ${collection}:`, error);
+      throw error;
     }
-    
-    return data || [];
   }
 
   private transformDatabaseItem(collection: string, item: any): any {
     switch (collection) {
+      case 'pcs':
+        return {
+          id: item.id,
+          hostname: item.hostname || '',
+          manufacturer: item.manufacturer || '',
+          model: item.model || '',
+          partNumber: item.part_number || '',
+          serialNumber: item.serial_number || '',
+          formFactor: item.form_factor || '',
+          os: item.os || '',
+          osBit: item.os_bit || '',
+          officeSuite: item.office_suite || '',
+          softwareLicenseKey: item.software_license_key || '',
+          wiredMacAddress: item.wired_mac_address || '',
+          wiredIpAddress: item.wired_ip_address || '',
+          wirelessMacAddress: item.wireless_mac_address || '',
+          wirelessIpAddress: item.wireless_ip_address || '',
+          purchaseDate: item.purchase_date || '',
+          purchasePrice: item.purchase_price || '',
+          purchasePriceTaxIncluded: item.purchase_price_tax_included || '',
+          depreciationYears: item.depreciation_years || '',
+          depreciationDept: item.depreciation_dept || '',
+          cpu: item.cpu || '',
+          memory: item.memory || '',
+          location: item.location || '',
+          status: item.status || '',
+          previousUser: item.previous_user || '',
+          userId: item.user_id || '',
+          usageStartDate: item.usage_start_date || '',
+          usageEndDate: item.usage_end_date || '',
+          carryInOutAgreement: item.carry_in_out_agreement || '',
+          lastUpdated: item.last_updated || '',
+          updatedBy: item.updated_by || '',
+          notes: item.notes || '',
+          project: item.project || '',
+          notes1: item.notes1 || '',
+          notes2: item.notes2 || '',
+          notes3: item.notes3 || '',
+          notes4: item.notes4 || '',
+          notes5: item.notes5 || '',
+        };
+
+      case 'monitors':
+        return {
+          id: item.id,
+          manufacturer: item.manufacturer || '',
+          model: item.model || '',
+          serialNumber: item.serial_number || '',
+          location: item.location || '',
+          status: item.status || '',
+          userId: item.user_id || '',
+          notes: item.notes || '',
+        };
+
+      case 'phones':
+        return {
+          id: item.id,
+          manufacturer: item.manufacturer || '',
+          model: item.model || '',
+          serialNumber: item.serial_number || '',
+          location: item.location || '',
+          status: item.status || '',
+          userId: item.user_id || '',
+          notes: item.notes || '',
+        };
+
       case 'locations':
         return {
           id: item.id,
@@ -167,6 +392,26 @@ class DatabaseServer {
           visible: item.visible !== false,
           order: item.order || 0,
         };
+        case 'employees':
+          return {
+            id: item.id,
+            name: item.name || '',
+            employeeId: item.employee_id || '',
+            email: item.email || '',
+            department: item.department || '',
+            projects: item.projects || [],
+          };
+  
+        case 'projects':
+          return {
+            id: item.id,
+            name: item.name || '',
+            description: item.description || '',
+            status: item.status || 'active',
+            visible: item.visible !== false,
+            order: item.order || 0,
+          };
+
       default:
         return item;
     }

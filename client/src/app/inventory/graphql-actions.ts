@@ -388,7 +388,6 @@ export async function getEmployeesFromGraphQL(): Promise<{ employees: { id: stri
 
 export async function getLocationsFromGraphQL(): Promise<{ locations: { id: string; name: string; }[]; error: string | null }> {
   try {
-    // Get locations directly from the locations table
     const response = await graphqlQuery(`
       query GetLocations {
         locations {
@@ -399,22 +398,11 @@ export async function getLocationsFromGraphQL(): Promise<{ locations: { id: stri
     `);
     
     if (response.errors) {
-      console.error('GraphQL errors:', response.errors);
       return { locations: [], error: response.errors[0]?.message || 'GraphQL query failed' };
     }
 
-    if (!response.data?.locations) {
-      return { locations: [], error: 'No data received from GraphQL' };
-    }
-
-    const locations = response.data.locations.map((location: any) => ({
-      id: location.id,
-      name: location.name
-    }));
-    
-    return { locations, error: null };
+    return { locations: response.data?.locations || [], error: null };
   } catch (error: any) {
-    console.error('Error getting locations from GraphQL:', error);
     return { locations: [], error: error.message || 'Failed to fetch locations' };
   }
 }
@@ -425,21 +413,11 @@ export async function getProjectsFromGraphQL(): Promise<{ projects: { id: string
     const response = await graphqlQuery(INVENTORY_QUERIES.GET_PROJECTS);
     
     if (response.errors) {
-      console.error('GraphQL errors:', response.errors);
       return { projects: [], error: response.errors[0]?.message || 'GraphQL query failed' };
     }
 
-    if (!response.data?.projects?.data) {
-      return { projects: [], error: 'No data received from GraphQL' };
-    }
-
-    const projects = response.data.projects.data.map((project: any) => ({
-      id: project.id,
-      name: project.name
-    }));
-    return { projects, error: null };
+    return { projects: response.data?.projects?.data || [], error: null };
   } catch (error: any) {
-    console.error('Error getting projects from GraphQL:', error);
     return { projects: [], error: error.message || 'Failed to fetch projects' };
   }
 }

@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     const { email, audit_plan_id } = requestSchema.parse(body)
 
     // Call the backend API to check if employee has audits and send email
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://backend:9000/api'}/employee-audits/request-access`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/employee-audits/request-access`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

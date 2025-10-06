@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { graphqlQuery } from "@/lib/graphql-client"
 
 interface AuditPlan {
   id: string
@@ -44,22 +45,34 @@ export default function EmployeeAuditsPage() {
 
   const fetchAuditPlans = async () => {
     try {
-      const response = await fetch('/api/employee-audits/available-plans')
-      
-      if (response.ok) {
-        const data = await response.json()
-        setAuditPlans(data.auditPlans || [])
-        
-        if (data.auditPlans && data.auditPlans.length === 0) {
-          console.warn('No audit plans returned from API')
+      const query = `
+        query {
+          availableAuditPlans {
+            id
+            name
+            start_date
+            due_date
+            status
+            progress {
+              total_assets
+              audited_assets
+              percentage
+            }
+          }
         }
-      } else {
-        console.error('Failed to fetch audit plans, status:', response.status)
-        const errorData = await response.json()
-        console.error('Error data:', errorData)
+      `
+
+      const response = await graphqlQuery(query)
+      
+      if (response.data) {
+        setAuditPlans(response.data.availableAuditPlans || [])
         
-        // Show error to user
-        setError(`Failed to fetch audit plans: ${errorData.message || 'Unknown error'}`)
+        if (response.data.availableAuditPlans && response.data.availableAuditPlans.length === 0) {
+          console.warn('No audit plans returned from GraphQL API')
+        }
+      } else if (response.errors) {
+        console.error('GraphQL errors:', response.errors)
+        setError(`Failed to fetch audit plans: ${response.errors[0]?.message || 'Unknown error'}`)
       }
     } catch (error) {
       console.error('Failed to fetch audit plans:', error)
@@ -86,20 +99,26 @@ export default function EmployeeAuditsPage() {
     setSuccessMessage(null)
 
     try {
-      const response = await fetch("/api/employee-audits/request-access", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ 
-          email, 
-          audit_plan_id: selectedPlanId 
-        }),
+      const mutation = `
+        mutation RequestAuditAccess($email: String!, $audit_plan_id: String!) {
+          requestAuditAccess(email: $email, audit_plan_id: $audit_plan_id) {
+            success
+            message
+            email_sent
+            accessUrl
+            expiresAt
+          }
+        }
+      `
+
+      const response = await graphqlQuery(mutation, {
+        email,
+        audit_plan_id: selectedPlanId
       })
 
-      const data = await response.json()
-
-      if (response.ok) {
+      if (response.data) {
+        const data = response.data.requestAuditAccess
+        
         if (data.success) {
           if (data.email_sent) {
             // Email was sent successfully
@@ -117,23 +136,22 @@ export default function EmployeeAuditsPage() {
             setShowNoAudits(true)
           }
         } else {
-          setShowNoAudits(true)
+          // Handle different error cases based on message
+          if (data.message?.includes('Employee not found')) {
+            setShowEmailNotFound(true)
+          } else if (data.message?.includes('do not have access')) {
+            setShowNoAudits(true)
+          } else {
+            setError(data.message || 'Failed to request access')
+          }
         }
-      } else {
-        console.error('Request failed with status:', response.status)
-        console.error('Response data:', data)
-        
-        if (response.status === 404) {
-          setShowEmailNotFound(true)
-        } else if (response.status === 403) {
-          setShowNoAudits(true)
-        } else if (response.status === 500) {
-          setError('Server error. Please try again later or contact support.')
-        } else {
-          setError(data.message || `Failed to request access (Status: ${response.status})`)
-        }
+      } else if (response.errors) {
+        console.error('GraphQL errors:', response.errors)
+        const errorMessage = response.errors[0]?.message || 'Failed to request access'
+        setError(errorMessage)
       }
     } catch (error) {
+      console.error('Request error:', error)
       setError("Network error. Please check your connection and try again.")
     } finally {
       setIsLoading(false)
@@ -365,10 +383,20 @@ export default function EmployeeAuditsPage() {
               </div>
               <CardTitle className="text-xl font-semibold text-gray-900">Email Not Found</CardTitle>
               <CardDescription>
-                The email address you entered is not registered in our system.
+                The email address <strong>{email}</strong> is not registered in our system.
+                <br /><br />
+                Please check your email address or contact your administrator to be added to the system.
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-3">
+              <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
+                <strong>Common solutions:</strong>
+                <ul className="mt-2 space-y-1">
+                  <li>• Check for typos in your email address</li>
+                  <li>• Try using a different email address</li>
+                  <li>• Contact your IT administrator</li>
+                </ul>
+              </div>
               <Button 
                 variant="outline" 
                 onClick={resetForm}

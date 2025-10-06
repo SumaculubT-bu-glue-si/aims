@@ -1,0 +1,11 @@
+# Ignore deployment scripts
+*.sh
+*.yml
+README.md
+
+# Ignore node_modules
+node_modules/
+
+# Only include the client folder, ignore everything else
+/*
+!/client/**

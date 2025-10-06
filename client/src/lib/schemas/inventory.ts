@@ -1,5 +1,6 @@
 
 import { z } from 'zod';
+import { graphqlQuery } from '@/lib/graphql-client';
 
 export const pcSchema = z.object({
   id: z.string().optional(),
@@ -48,9 +49,75 @@ export const pcSchema = z.object({
 
 export type PcFormValues = z.infer<typeof pcSchema>;
 
+export interface Employee {
+  id: string;
+  name: string;
+  employeeId: string;
+  email: string;
+  department: string;
+  projects: string[];
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string;
+  status: string;
+  visible: boolean;
+  order: number;
+}
+
+export interface Location {
+  id: string;
+  name: string;
+  address: string;
+  city: string;
+  state: string;
+  country: string;
+  postal_code: string;
+  phone: string;
+  email: string;
+  manager: string;
+  status: string;
+  visible: boolean;
+  order: number;
+}
+
 export type PcAsset = PcFormValues & {
   id: string;
   purchasePrice: string;
   purchasePriceTaxIncluded: string;
   depreciationYears: string;
 };
+
+export async function getLocationsFromGraphQL(): Promise<{ locations: { id: string; name: string; }[]; error: string | null }> {
+  try {
+    const response = await graphqlQuery(`
+      query GetLocations {
+        locations {
+          id
+          name
+          address
+          city
+          state
+          country
+          postal_code
+          phone
+          email
+          manager
+          status
+          visible
+          order
+        }
+      }
+    `);
+
+    if (response.errors) {
+      return { locations: [], error: response.errors[0]?.message || 'GraphQL query failed' };
+    }
+
+    return { locations: response.data?.locations || [], error: null };
+  } catch (error: any) {
+    return { locations: [], error: error.message || 'Failed to fetch locations' };
+  }
+
