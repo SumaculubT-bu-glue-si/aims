@@ -68,25 +68,25 @@ function normalizeStatus(value: any): string {
   const v = value.trim();
 
   // Keep Japanese statuses as-is since frontend expects them
-  if (v === '返却済') return '返却済';
-  if (v === '廃止') return '廃止';
-  if (v === '保管(使用無)') return '保管(使用無)';
-  if (v === '利用中') return '利用中';
-  if (v === '保管中') return '保管中';
-  if (v === '貸出中') return '貸出中';
-  if (v === '故障中') return '故障中';
-  if (v === '利用予約') return '利用予約';
+  if (v === '???') return '???';
+  if (v === '??') return '??';
+  if (v === '??(???)') return '??(???)';
+  if (v === '???') return '???';
+  if (v === '???') return '???';
+  if (v === '???') return '???';
+  if (v === '???') return '???';
+  if (v === '????') return '????';
 
   // Common English variations - convert to Japanese equivalents
   const lower = v.toLowerCase();
-  if (lower === 'returned') return '返却済';
-  if (lower === 'abolished') return '廃止';
-  if (lower === 'stored - not in use') return '保管(使用無)';
-  if (lower === 'in use') return '利用中';
-  if (lower === 'in storage') return '保管中';
-  if (lower === 'on loan') return '貸出中';
-  if (lower === 'broken') return '故障中';
-  if (lower === 'reserved for use') return '利用予約';
+  if (lower === 'returned') return '???';
+  if (lower === 'abolished') return '??';
+  if (lower === 'stored - not in use') return '??(???)';
+  if (lower === 'in use') return '???';
+  if (lower === 'in storage') return '???';
+  if (lower === 'on loan') return '???';
+  if (lower === 'broken') return '???';
+  if (lower === 'reserved for use') return '????';
 
   return v; // fallback to original
 }
@@ -806,20 +806,13 @@ export async function createAuditPlan(auditPlanData: {
             user_id
           }
         }
-        calendar_events {
-          id
-          title
-          created_at
-          attendees_count
-          location
-        }
       }
     }
   `;
 
-  console.log('🚀 Creating audit plan with data:', auditPlanData);
-  console.log('📡 Using GraphQL endpoint:', GRAPHQL_ENDPOINT);
-  console.log('🔍 Mutation:', mutation);
+  console.log('?? Creating audit plan with data:', auditPlanData);
+  console.log('?? Using GraphQL endpoint:', GRAPHQL_ENDPOINT);
+  console.log('?? Mutation:', mutation);
 
   try {
     const requestBody = {
@@ -834,7 +827,7 @@ export async function createAuditPlan(auditPlanData: {
       },
     };
 
-    console.log('📤 Request body:', JSON.stringify(requestBody, null, 2));
+    console.log('?? Request body:', JSON.stringify(requestBody, null, 2));
 
     const response = await fetch(GRAPHQL_ENDPOINT, {
       method: 'POST',
@@ -845,31 +838,31 @@ export async function createAuditPlan(auditPlanData: {
       body: JSON.stringify(requestBody),
     });
 
-    console.log('📥 Response status:', response.status);
-    console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
+    console.log('?? Response status:', response.status);
+    console.log('?? Response headers:', Object.fromEntries(response.headers.entries()));
 
     const responseText = await response.text();
-    console.log('📥 Response text (first 500 chars):', responseText.substring(0, 500));
+    console.log('?? Response text (first 500 chars):', responseText.substring(0, 500));
 
     let result;
     try {
       result = JSON.parse(responseText);
-      console.log('✅ Response parsed as JSON successfully');
+      console.log('? Response parsed as JSON successfully');
     } catch (parseError) {
-      console.error('❌ Failed to parse response as JSON:', parseError);
-      console.error('❌ Response text:', responseText);
+      console.error('? Failed to parse response as JSON:', parseError);
+      console.error('? Response text:', responseText);
       throw new Error(`Invalid JSON response: ${responseText.substring(0, 200)}`);
     }
 
     if (result.errors) {
-      console.error('❌ GraphQL errors:', result.errors);
+      console.error('? GraphQL errors:', result.errors);
       throw new Error(result.errors[0]?.message || 'Failed to create audit plan');
     }
 
-    console.log('✅ Audit plan created successfully:', result.data);
+    console.log('? Audit plan created successfully:', result.data);
     return { success: true, data: result.data.createAuditPlan };
   } catch (error) {
-    console.error('❌ Error creating audit plan:', error);
+    console.error('? Error creating audit plan:', error);
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Failed to create audit plan' 
@@ -1015,13 +1008,6 @@ export async function getAuditPlans() {
                 name
               }
             }
-          }
-          calendar_events {
-            id
-            title
-            created_at
-            attendees_count
-            location
           }
         }
       }

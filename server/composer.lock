@@ -126,12 +126,12 @@
             "source": {
                 "type": "git",
                 "url": "https://github.com/SumaculubT-bu-glue-si/bu-dal-package.git",
-                "reference": "1e08a052a5591604426793557ddbe70976506922"
+                "reference": "a5bc756fd3a9a02f87fe370ef27ab2d5ecf2fbf0"
             },
             "dist": {
                 "type": "zip",
-                "url": "https://api.github.com/repos/SumaculubT-bu-glue-si/bu-dal-package/zipball/1e08a052a5591604426793557ddbe70976506922",
-                "reference": "1e08a052a5591604426793557ddbe70976506922",
+                "url": "https://api.github.com/repos/SumaculubT-bu-glue-si/bu-dal-package/zipball/a5bc756fd3a9a02f87fe370ef27ab2d5ecf2fbf0",
+                "reference": "a5bc756fd3a9a02f87fe370ef27ab2d5ecf2fbf0",
                 "shasum": ""
             },
             "require": {
@@ -170,7 +170,7 @@
                 "source": "https://github.com/SumaculubT-bu-glue-si/bu-dal-package/tree/main",
                 "issues": "https://github.com/SumaculubT-bu-glue-si/bu-dal-package/issues"
             },
-            "time": "2025-10-06T07:43:47+00:00"
+            "time": "2025-10-07T02:03:55+00:00"
         },
         {
             "name": "carbonphp/carbon-doctrine-types",
