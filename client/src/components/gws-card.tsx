@@ -1,7 +1,7 @@
 
 'use client';
 
-import type { GWS } from '@/lib/types';
+import type { GWS } from '@/lib/types/index';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ShieldCheck, Mail, Globe, Info } from 'lucide-react';
 

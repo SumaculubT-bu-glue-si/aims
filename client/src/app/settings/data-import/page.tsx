@@ -75,15 +75,15 @@ export default function DataImportPage() {
   ] as const
 
   const employeeSystemFields: AssetField[] = [
-    { id: 'emp_field_01', order: 1, systemName: 'employeeId', displayName: t('pages.settings.employees.dialog_form_label_id'), dataType: 'Text', visible: true, notes: '従業員の一意のID。空の場合は自動採番されます。' },
-    { id: 'emp_field_02', order: 2, systemName: 'name', displayName: t('pages.settings.employees.dialog_form_label_name'), dataType: 'Text', visible: true, notes: '従業員の氏名' },
-    { id: 'emp_field_03', order: 3, systemName: 'email', displayName: t('pages.settings.employees.dialog_form_label_email'), dataType: 'Text', visible: true, notes: '従業員のメールアドレス' },
-    { id: 'emp_field_04', order: 4, systemName: 'department', displayName: t('pages.settings.employees.dialog_form_label_department'), dataType: 'Text', visible: true, notes: '所属する拠点・部署' },
-    { id: 'emp_field_05', order: 5, systemName: 'projects', displayName: t('pages.settings.employees.table_header_projects'), dataType: 'Text', visible: true, notes: '参加しているプロジェクト（カンマ区切り）' },
+    { id: 'emp_field_01', order: 1, systemName: 'employeeId', displayName: t('pages.settings.employees.dialog_form_label_id'), dataType: 'Text', visible: true, notes: '従業員の一意のID。空の場合は自動採番されます。', createdAt: '2023-01-01T00:00:00Z', updatedAt: '2023-01-01T00:00:00Z' },
+    { id: 'emp_field_02', order: 2, systemName: 'name', displayName: t('pages.settings.employees.dialog_form_label_name'), dataType: 'Text', visible: true, notes: '従業員の氏名', createdAt: '2023-01-01T00:00:00Z', updatedAt: '2023-01-01T00:00:00Z' },
+    { id: 'emp_field_03', order: 3, systemName: 'email', displayName: t('pages.settings.employees.dialog_form_label_email'), dataType: 'Text', visible: true, notes: '従業員のメールアドレス', createdAt: '2023-01-01T00:00:00Z', updatedAt: '2023-01-01T00:00:00Z' },
+    { id: 'emp_field_04', order: 4, systemName: 'department', displayName: t('pages.settings.employees.dialog_form_label_department'), dataType: 'Text', visible: true, notes: '所属する拠点・部署', createdAt: '2023-01-01T00:00:00Z', updatedAt: '2023-01-01T00:00:00Z' },
+    { id: 'emp_field_05', order: 5, systemName: 'projects', displayName: t('pages.settings.employees.table_header_projects'), dataType: 'Text', visible: true, notes: '参加しているプロジェクト（カンマ区切り）', createdAt: '2023-01-01T00:00:00Z', updatedAt: '2023-01-01T00:00:00Z' },
   ];
 
   const locationSystemFields: AssetField[] = [
-    { id: 'loc_field_01', order: 1, systemName: 'name', displayName: t('pages.settings.locations.dialog_form_label'), dataType: 'Text', visible: true, notes: '拠点名' },
+    { id: 'loc_field_01', order: 1, systemName: 'name', displayName: t('pages.settings.locations.dialog_form_label'), dataType: 'Text', visible: true, notes: '拠点名', createdAt: '2023-01-01T00:00:00Z', updatedAt: '2023-01-01T00:00:00Z' },
   ];
 
   const targetSystemFields = useMemo((): AssetField[] => {

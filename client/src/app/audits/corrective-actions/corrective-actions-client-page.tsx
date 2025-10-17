@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { format, addDays, isAfter, isBefore } from "date-fns"
 import { useSearchParams } from "next/navigation"
+import { useAuth } from "@/context/auth-context"
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -27,7 +28,7 @@ import {
   updateCorrectiveActionStatus,
   deleteCorrectiveAction
 } from "@/lib/graphql-client"
-import { getEmployees } from "@/app/settings/employees/actions"
+import { getEmployeesFromGraphQL } from "@/app/inventory/graphql-actions"
 import type { Employee } from "@/lib/schemas/settings"
 import { get } from "http"
 
@@ -97,6 +98,7 @@ interface CorrectiveAction {
 }
 
 export default function CorrectiveActionsClientPage() {
+  const { user, loading: authLoading } = useAuth();
   const [plans, setPlans] = useState<AuditPlan[]>([])
   const [selectedPlanId, setSelectedPlanId] = useState<string>("")
   const [isLoading, setIsLoading] = useState(true)
@@ -123,13 +125,14 @@ export default function CorrectiveActionsClientPage() {
 
   useEffect(() => {
     async function fetchData() {
-      setIsLoading(true);
-      try {
-        // Fetch audit plans and employees in parallel
-        const [plansResult, employeesResult] = await Promise.all([
-          getAuditPlans(),
-          getEmployees()
-        ]);
+      if (!authLoading && user) {
+        setIsLoading(true);
+        try {
+          // Fetch audit plans and employees in parallel
+          const [plansResult, employeesResult] = await Promise.all([
+            getAuditPlans(),
+            getEmployeesFromGraphQL()
+          ]);
 
         if (plansResult.success && plansResult.data) {
           // Filter for plans with audit data
@@ -144,20 +147,21 @@ export default function CorrectiveActionsClientPage() {
           console.error('Failed to fetch audit plans:', plansResult.error);
         }
 
-        if (employeesResult.employees) {
-          setEmployees(employeesResult.employees);
-        } else {
+        if (employeesResult.error) {
           console.error('Failed to fetch employees:', employeesResult.error);
+        } else {
+          setEmployees(employeesResult.employees as unknown as Employee[]);
         }
       } catch (error) {
         console.error('Error fetching data:', error);
-      } finally {
-        setIsLoading(false);
+        } finally {
+          setIsLoading(false);
+        }
       }
     }
 
     fetchData();
-  }, [])
+  }, [authLoading, user])
 
   // Handle URL parameters for pre-selecting assets
   useEffect(() => {
@@ -225,6 +229,7 @@ export default function CorrectiveActionsClientPage() {
       fetchCorrectiveActions();
     }
   }, [selectedPlanId]);
+
 
   const fetchCorrectiveActions = async () => {
     if (!selectedPlanId) return;
@@ -918,7 +923,22 @@ export default function CorrectiveActionsClientPage() {
 
   return (
     <>
-      <div className="space-y-6">
+      {authLoading ? (
+        <div className="flex h-screen w-screen items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+            <p>Loading...</p>
+          </div>
+        </div>
+      ) : !user ? (
+        <div className="flex h-screen w-screen items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+            <p>Redirecting to login...</p>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>{t('pages.audits.confirmation.title')}</CardTitle>
@@ -1352,6 +1372,7 @@ export default function CorrectiveActionsClientPage() {
           </Card>
         )}
       </div>
+      )}
 
       {/* Create/Edit Action Modal */}
       <Dialog open={isCreateModalOpen || isEditModalOpen} onOpenChange={(open) => {

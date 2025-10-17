@@ -6,7 +6,7 @@ import { WandSparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { analyzeSubscriptions } from '@/lib/actions';
-import type { Subscription } from '@/lib/types';
+import type { Subscription } from '@/lib/types/index';
 import { Skeleton } from './ui/skeleton';
 
 

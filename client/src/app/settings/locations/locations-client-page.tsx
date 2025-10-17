@@ -48,7 +48,9 @@ import { Input } from "@/components/ui/input"
 import { PlusCircle, Trash2, AlertTriangle, GripVertical } from "lucide-react"
 import { useI18n } from "@/hooks/use-i18n"
 import { useToast } from "@/hooks/use-toast"
-import { saveLocation, deleteLocation, updateLocationOrder, saveLocationsChanges, type Location } from "./actions"
+import { useAuth } from "@/context/auth-context"
+import { getLocationsFromGraphQL, saveLocationClient, deleteLocationClient, saveLocationsChangesClient } from "../../inventory/graphql-actions"
+import { type Location } from "./actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
@@ -60,8 +62,8 @@ import { CSS } from '@dnd-kit/utilities';
 type LocationFormValues = z.infer<ReturnType<typeof useLocationSchema>>
 
 type LocationsClientPageProps = {
-  initialLocations: Location[];
-  initialError: string | null;
+  initialLocations?: Location[];
+  initialError?: string | null;
 }
 
 function useLocationSchema() {
@@ -112,9 +114,12 @@ function SortableLocationRow({ location, onEdit, onVisibilityToggle, isPending, 
   );
 }
 
-export default function LocationsClientPage({ initialLocations, initialError }: LocationsClientPageProps) {
+export default function LocationsClientPage({ initialLocations, initialError }: LocationsClientPageProps = {}) {
+  const { user, loading: authLoading } = useAuth();
   const [locations, setLocations] = useState<Location[]>(initialLocations || []);
-  const [error, setError] = useState<string | null>(initialError);
+  const [initialLocationsState, setInitialLocationsState] = useState<Location[]>(initialLocations || []);
+  const [error, setError] = useState<string | null>(initialError || null);
+  const [isLoading, setIsLoading] = useState(!initialLocations);
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false)
   const [editingLocation, setEditingLocation] = useState<Location | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -128,9 +133,59 @@ export default function LocationsClientPage({ initialLocations, initialError }: 
 
   useEffect(() => {
     setLocations(initialLocations || []);
-    setError(initialError);
+    setError(initialError || null);
     setHasPendingChanges(false);
   }, [initialLocations, initialError]);
+
+  // Fetch data when authenticated (only if not provided as props)
+  useEffect(() => {
+    async function fetchData() {
+      if (!authLoading && user && !initialLocations) {
+        setIsLoading(true);
+        try {
+          const locationsResult = await getLocationsFromGraphQL();
+
+              if (locationsResult.error) {
+                setError('Failed to fetch locations');
+              } else {
+                // Sort locations by order to ensure correct display order
+                const sortedLocations = [...locationsResult.locations].sort((a, b) => a.order - b.order);
+                setLocations(sortedLocations);
+                setInitialLocationsState(sortedLocations); // Store initial state
+              }
+        } catch (error) {
+          setError('Failed to fetch data');
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    }
+    fetchData();
+  }, [authLoading, user, initialLocations]);
+
+  // Show loading state while authentication is in progress
+  if (authLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Redirect to login if not authenticated
+  if (!user) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p>Redirecting to login...</p>
+        </div>
+      </div>
+    );
+  }
 
 
   const form = useForm<LocationFormValues>({
@@ -158,13 +213,35 @@ export default function LocationsClientPage({ initialLocations, initialError }: 
     if (!editingLocation) return;
 
     startTransition(async () => {
-      const result = await deleteLocation(editingLocation.id)
+      const result = await deleteLocationClient(editingLocation.id)
       if (result.success) {
         toast({
           title: t('actions.success'),
           description: t(result.message)
         })
-        router.refresh();
+        
+        // Refresh the locations data from GraphQL
+        try {
+          const locationsResult = await getLocationsFromGraphQL();
+          if (locationsResult.error) {
+            toast({
+              title: t('actions.error'),
+              description: 'Failed to refresh location data',
+              variant: "destructive"
+            });
+          } else {
+            // Sort locations by order to ensure correct display order
+            const sortedLocations = [...locationsResult.locations].sort((a, b) => a.order - b.order);
+            setLocations(sortedLocations);
+          }
+        } catch (error) {
+          console.error('Error refreshing locations:', error);
+          toast({
+            title: t('actions.error'),
+            description: 'Failed to refresh location data',
+            variant: "destructive"
+          });
+        }
       } else {
         toast({
           title: t('actions.error'),
@@ -174,12 +251,13 @@ export default function LocationsClientPage({ initialLocations, initialError }: 
       }
       setIsDeleteDialogOpen(false);
       setIsFormDialogOpen(false);
+      setEditingLocation(null);
     })
   }
 
   function onSubmit(values: LocationFormValues) {
     startTransition(async () => {
-      const result = await saveLocation(editingLocation ? editingLocation.id : null, values)
+      const result = await saveLocationClient(editingLocation ? editingLocation.id : null, values)
       if (result.success) {
         toast({
           title: t('actions.success'),
@@ -187,7 +265,29 @@ export default function LocationsClientPage({ initialLocations, initialError }: 
         })
         setIsFormDialogOpen(false)
         setEditingLocation(null)
-        router.refresh();
+        
+        // Refresh the locations data from GraphQL
+        try {
+          const locationsResult = await getLocationsFromGraphQL();
+          if (locationsResult.error) {
+            toast({
+              title: t('actions.error'),
+              description: 'Failed to refresh location data',
+              variant: "destructive"
+            });
+          } else {
+            // Sort locations by order to ensure correct display order
+            const sortedLocations = [...locationsResult.locations].sort((a, b) => a.order - b.order);
+            setLocations(sortedLocations);
+          }
+        } catch (error) {
+          console.error('Error refreshing locations:', error);
+          toast({
+            title: t('actions.error'),
+            description: 'Failed to refresh location data',
+            variant: "destructive"
+          });
+        }
       } else {
         toast({
           title: t('actions.error'),
@@ -239,7 +339,7 @@ export default function LocationsClientPage({ initialLocations, initialError }: 
         // Get all locations that have different visibility or order from initial state
         const updates = locations
           .filter(location => {
-            const initialLocation = initialLocations.find(l => l.id === location.id);
+            const initialLocation = initialLocationsState.find(l => l.id === location.id);
             if (!initialLocation) return false;
 
             // Check for visibility changes
@@ -250,7 +350,7 @@ export default function LocationsClientPage({ initialLocations, initialError }: 
             return visibilityChanged || orderChanged;
           })
           .map(location => {
-            const initialLocation = initialLocations.find(l => l.id === location.id)!;
+            const initialLocation = initialLocationsState.find(l => l.id === location.id)!;
             const updates: Partial<Location> = {};
 
             // Add visibility update if changed
@@ -265,7 +365,13 @@ export default function LocationsClientPage({ initialLocations, initialError }: 
 
             return {
               id: location.id,
-              updates
+              updates: {
+                ...updates,
+                name: location.name // Include the current name
+              },
+              currentLocation: {
+                name: location.name
+              }
             };
           });
 
@@ -274,7 +380,7 @@ export default function LocationsClientPage({ initialLocations, initialError }: 
           return;
         }
 
-        const result = await saveLocationsChanges(updates);
+        const result = await saveLocationsChangesClient(updates);
 
         if (result.success) {
           toast({
@@ -282,7 +388,30 @@ export default function LocationsClientPage({ initialLocations, initialError }: 
             description: t(result.message)
           });
           setHasPendingChanges(false); // Clear changes
-          router.refresh(); // Refresh to get updated data
+          
+          // Refresh the locations data from GraphQL
+          try {
+            const locationsResult = await getLocationsFromGraphQL();
+            if (locationsResult.error) {
+              toast({
+                title: t('actions.error'),
+                description: 'Failed to refresh location data',
+                variant: "destructive"
+              });
+            } else {
+              // Sort locations by order to ensure correct display order
+            const sortedLocations = [...locationsResult.locations].sort((a, b) => a.order - b.order);
+            setLocations(sortedLocations);
+              setInitialLocationsState(sortedLocations); // Update initial state
+            }
+          } catch (error) {
+            console.error('Error refreshing locations:', error);
+            toast({
+              title: t('actions.error'),
+              description: 'Failed to refresh location data',
+              variant: "destructive"
+            });
+          }
         } else {
           console.error('❌ Failed to save location changes:', result.message);
           toast({
@@ -305,7 +434,7 @@ export default function LocationsClientPage({ initialLocations, initialError }: 
   const handleDiscardChanges = () => {
     setHasPendingChanges(false);
     // Reset locations to their original state
-    setLocations(initialLocations || []);
+    setLocations(initialLocationsState);
   };
 
   const renderContent = () => {
@@ -335,16 +464,39 @@ export default function LocationsClientPage({ initialLocations, initialError }: 
               </TableHeader>
               <SortableContext items={locations} strategy={verticalListSortingStrategy}>
                 <TableBody>
-                  {locations.map((location) => (
-                    <SortableLocationRow
-                      key={location.id}
-                      location={location}
-                      onEdit={handleEdit}
-                      onVisibilityToggle={handleVisibilityToggle}
-                      isPending={isPending}
-                      hasPendingChanges={hasPendingChanges}
-                    />
-                  ))}
+                  {isLoading ? (
+                    // Loading skeleton
+                    Array.from({ length: 5 }).map((_, index) => (
+                      <TableRow key={`loading-${index}`}>
+                        <TableCell className="py-2 px-2 w-10">
+                          <div className="h-4 bg-muted animate-pulse rounded w-4"></div>
+                        </TableCell>
+                        <TableCell className="py-2 px-2">
+                          <div className="h-4 bg-muted animate-pulse rounded w-32"></div>
+                        </TableCell>
+                        <TableCell className="py-2 px-2 text-right w-24">
+                          <div className="h-4 bg-muted animate-pulse rounded w-8 ml-auto"></div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : locations.length > 0 ? (
+                    locations.map((location) => (
+                      <SortableLocationRow
+                        key={location.id}
+                        location={location}
+                        onEdit={handleEdit}
+                        onVisibilityToggle={handleVisibilityToggle}
+                        isPending={isPending}
+                        hasPendingChanges={hasPendingChanges}
+                      />
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                        No locations found
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </SortableContext>
             </Table>

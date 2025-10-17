@@ -1,25 +1,19 @@
 
 import { z } from 'zod';
+import { Employee, EmployeeFormValues, AssetField } from '@/lib/types/index';
 
 // For Employee Master Data
 export const employeeSchema = (t: (key: string, options?: any) => string) => z.object({
-  employeeId: z.string().min(1, t('validation.required', { field: t('pages.settings.employees.dialog_form_label_id') })),
+  employee_id: z.string().min(1, t('validation.required', { field: t('pages.settings.employees.dialog_form_label_id') })),
   name: z.string().min(1, t('validation.required', { field: t('pages.settings.employees.dialog_form_label_name') })),
   email: z.string().email(t('validation.invalid_email')).min(1, t('validation.required', { field: t('pages.settings.employees.dialog_form_label_email') })),
   department: z.string().optional(),
-  location: z.string().optional(),
-  projects: z.array(z.string()).optional(),
+  location: z.string().min(1, t('validation.required', { field: t('pages.settings.employees.dialog_form_label_location') })),
+  projects: z.array(z.string()),
 });
-export type EmployeeFormValues = z.infer<ReturnType<typeof employeeSchema>>;
-export type Employee = {
-  id: string;
-  employeeId: string;
-  name: string;
-  email: string;
-  department?: string;
-  location?: string;
-  projects?: string[];
-};
+
+// Re-export centralized types for backward compatibility
+export type { Employee, EmployeeFormValues };
 
 // For System Users (connected to Firebase Auth)
 export const systemUserSchema = z.object({
@@ -57,4 +51,5 @@ export const assetFieldSchema = z.object({
 
 export const assetFieldsUpdateSchema = z.array(assetFieldSchema);
 
-export type AssetField = z.infer<typeof assetFieldSchema>;
+// Re-export centralized type for backward compatibility
+export type { AssetField };

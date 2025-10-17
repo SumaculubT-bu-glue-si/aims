@@ -19,7 +19,12 @@ function MainLayout({ children }: { children: React.ReactNode }) {
     const isEmployeeAuditsPage = pathname.startsWith('/employee-audits');
 
     if (isLoginPage || isEmployeeAuditsPage) {
-        return <>{children}</>;
+        return (
+            <>
+                {children}
+                <Toaster />
+            </>
+        );
     }
 
     return (

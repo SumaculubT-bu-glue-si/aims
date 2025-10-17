@@ -1,27 +1,12 @@
 
-
 import UserAssetsClientPage from "./user-assets-client-page";
-import { getAssets } from "./actions";
-import { getLocations } from "../settings/locations/actions";
-import { getProjects } from "../settings/projects/actions";
 import { masterData as localMasterData } from "@/lib/data";
 
-export default async function UserAssetsPage() {
-  // Only fetch essential data initially - locations and projects
-  // Assets will be fetched lazily when needed
-  const [locationsResult, projectsResult] = await Promise.all([
-    getLocations(),
-    getProjects(),
-  ]);
-
-  const error = locationsResult.error || projectsResult.error;
-
-  // Don't fetch all assets here - let the client component handle it
-  // This significantly reduces the initial page load time
-  
+export default function UserAssetsPage() {
+  // Pass empty initial data - client component will fetch everything
   const masterData = {
-    locations: ['All', ...(locationsResult.locations?.map(l => l.name) || [])],
-    projects: ['All', ...(projectsResult.projects?.map(p => p.name) || [])],
+    locations: ['All'], // Will be populated by client component
+    projects: ['All'], // Will be populated by client component
     employees: [], // Will be populated by client component when assets are fetched
   };
 
@@ -38,7 +23,7 @@ export default async function UserAssetsPage() {
       initialMasterData={masterData}
       initialInventory={inventory}
       systemFields={localMasterData.assetFields}
-      initialError={error}
+      initialError={null}
     />
   );
 }

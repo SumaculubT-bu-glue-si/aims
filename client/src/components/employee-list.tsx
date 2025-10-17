@@ -1,7 +1,7 @@
 
 'use client';
 
-import type { Employee } from '@/lib/types';
+import type { Employee } from '@/lib/types/index';
 import { useRouter } from 'next/navigation';
 import {
     Table,

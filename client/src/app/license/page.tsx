@@ -2,7 +2,7 @@
 'use client';
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import type { Employee, Subscription } from '@/lib/types';
+import type { Employee, Subscription } from '@/lib/types/index';
 import { JapaneseYen, Users, Briefcase } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { employees as initialEmployees, subscriptions as initialSubscriptions } from '@/lib/mock-data';

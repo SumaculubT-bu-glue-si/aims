@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useRouter } from 'next/navigation';
-import type { Employee } from '@/lib/types';
+import type { Employee } from '@/lib/types/index';
 
 const employeeSchema = z.object({
     name: z.string().min(1, { message: 'Name is required' }),

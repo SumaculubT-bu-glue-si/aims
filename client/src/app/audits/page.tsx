@@ -9,10 +9,17 @@ import { format } from "date-fns"
 import { useI18n } from "@/hooks/use-i18n"
 import { useToast } from "@/hooks/use-toast"
 import { useTransitionContext } from "@/context/transition-context"
-import { getPcs } from "../inventory/actions"
-import { getLocations, type Location } from "../settings/locations/actions"
-import { getEmployees } from "../settings/employees/actions"
+import { useAuth } from "@/context/auth-context"
+import { getLocationsFromGraphQL, getEmployeesFromGraphQL } from "../inventory/graphql-actions"
 import { type Employee } from "@/lib/schemas/settings"
+
+// Define the Location type to match what we get from GraphQL
+interface LocationData {
+  id: string;
+  name: string;
+  order: number;
+  visible?: boolean;
+}
 import { createAuditPlan } from "@/lib/graphql-client"
 
 import { Button } from "@/components/ui/button"
@@ -21,7 +28,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"   
 import { Calendar } from "@/components/ui/calendar"
 import { Loader, Calendar as CalendarIcon, PlusCircle, ChevronDown } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -95,8 +102,9 @@ export default function AuditPreparationPage() {
     const { t } = useI18n();
     const { toast } = useToast();
     const { navigate } = useTransitionContext();
+    const { user, loading: authLoading } = useAuth();
 
-    const [allLocations, setAllLocations] = useState<Location[]>([]);
+    const [allLocations, setAllLocations] = useState<LocationData[]>([]);
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -270,6 +278,7 @@ export default function AuditPreparationPage() {
         return t('pages.audits.preparation.multiple_employees_available', { count });
     }, [t]);
 
+
     // Simplified useEffect - only update assignments when locations change
     useEffect(() => {
         if (selectedLocations.length === 0) {
@@ -335,11 +344,12 @@ export default function AuditPreparationPage() {
 
     useEffect(() => {
         async function fetchData() {
-            setIsLoading(true);
-            const [locationsResult, employeesResult] = await Promise.all([
-                getLocations(),
-                getEmployees()
-            ]);
+            if (!authLoading && user) {
+                setIsLoading(true);
+                const [locationsResult, employeesResult] = await Promise.all([
+                    getLocationsFromGraphQL(),
+                    getEmployeesFromGraphQL()
+                ]);
 
             if (locationsResult.error) {
                 toast({
@@ -362,11 +372,12 @@ export default function AuditPreparationPage() {
                 setEmployees(employeesResult.employees);
             }
 
-            setIsLoading(false);
+                setIsLoading(false);
+            }
         }
         fetchData();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [authLoading, user]);
 
     async function onSubmit(values: AuditPlanFormValues) {
         setIsSubmitting(true);
@@ -478,7 +489,23 @@ export default function AuditPreparationPage() {
     }
 
     return (
-        <Form {...form}>
+        <>
+            {authLoading ? (
+                <div className="flex h-screen w-screen items-center justify-center">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+                        <p>Loading...</p>
+                    </div>
+                </div>
+            ) : !user ? (
+                <div className="flex h-screen w-screen items-center justify-center">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+                        <p>Redirecting to login...</p>
+                    </div>
+                </div>
+            ) : (
+                <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)}>
                 <Card>
                     <CardHeader>
@@ -668,6 +695,8 @@ export default function AuditPreparationPage() {
                 </Card>
             </form>
         </Form>
+            )}
+        </>
     );
 }
 

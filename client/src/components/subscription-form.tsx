@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useRouter } from 'next/navigation';
-import type { Subscription, Account, AssignedUser } from '@/lib/types';
+import type { Subscription, Account, AssignedUser } from '@/lib/types/index';
 import { Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -25,7 +25,7 @@ const accountSchema = z.object({
     amount: z.coerce.number().min(0, 'Amount must be 0 or greater'),
     currency: z.enum(['JPY', 'USD']),
     billingCycle: billingCycleSchema,
-    startDate: z.string().optional(),
+    startDate: z.string().min(1, 'Start date is required'),
     endDate: z.string().optional(),
     renewalDate: z.string().optional(),
     version: z.string().optional(),
@@ -376,7 +376,20 @@ export default function SubscriptionForm({ onSave, onCancel, initialData }: Subs
 
         if (initialData) {
             if (data.pricingType === 'per-license') {
-                saveData.accounts = data.accounts as Account[] | undefined;
+                // Transform form accounts to match centralized Account interface
+                saveData.accounts = data.accounts?.map(account => ({
+                    accountId: account.accountId,
+                    assignedUser: account.assignedUser,
+                    assignedDevice: account.assignedDevice,
+                    version: account.version,
+                    startDate: account.startDate,
+                    endDate: account.endDate,
+                    renewalDate: account.renewalDate,
+                    amount: account.amount,
+                    currency: account.currency,
+                    billingCycle: account.billingCycle,
+                    licenseKey: account.licenseKey,
+                })) || [];
                 saveData.perUserPricing = undefined;
                 saveData.assignedUsers = initialData.assignedUsers; // Retain existing users
             } else if (data.pricingType === 'per-seat') {
@@ -387,7 +400,20 @@ export default function SubscriptionForm({ onSave, onCancel, initialData }: Subs
         } else {
             // This is a new subscription
             if (data.pricingType === 'per-license') {
-                saveData.accounts = data.accounts as Account[] | undefined;
+                // Transform form accounts to match centralized Account interface
+                saveData.accounts = data.accounts?.map(account => ({
+                    accountId: account.accountId,
+                    assignedUser: account.assignedUser,
+                    assignedDevice: account.assignedDevice,
+                    version: account.version,
+                    startDate: account.startDate,
+                    endDate: account.endDate,
+                    renewalDate: account.renewalDate,
+                    amount: account.amount,
+                    currency: account.currency,
+                    billingCycle: account.billingCycle,
+                    licenseKey: account.licenseKey,
+                })) || [];
                 saveData.assignedUsers = [];
             } else if (data.pricingType === 'per-seat') {
                 saveData.assignedUsers = [];

@@ -3,7 +3,7 @@ class DatabaseClient {
   private apiBaseUrl: string;
 
   constructor() {
-    this.apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    this.apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://assetwise.glue-si.com';
   }
 
   // Try to fetch from database first, fall back to localStorage

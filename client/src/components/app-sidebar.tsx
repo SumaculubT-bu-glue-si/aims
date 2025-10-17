@@ -65,7 +65,7 @@ export function AppSidebar() {
 
     const systems = [
         { href: '/license', label: 'License Management', value: 'license', available: true },
-        { href: '/compliance', label: 'Compliance Management', value: 'compliance', available: false },
+        { href: '/compliance', label: 'Compliance Management', value: 'compliance', available: true },
         { href: '/server', label: 'Server Management', value: 'server', available: false },
         { href: '/', label: 'PC Management', value: 'pc', available: true },
         { href: '/router', label: 'Router Management', value: 'router', available: false },
@@ -76,7 +76,7 @@ export function AppSidebar() {
     const getSystemFromPath = (pathname: string) => {
         for (const system of systems) {
             if (system.value === 'pc' && pathname === '/') return 'pc';
-            if (system.value !== 'pc' && pathname.includes(system.value)) return system.value;
+            if (system.value !== 'pc' && pathname.startsWith(`/${system.value}`)) return system.value;
         }
         return 'pc';
     };
@@ -126,7 +126,6 @@ export function AppSidebar() {
         { href: "/inventory", label: t("nav.inventory"), icon: Boxes },
         { href: "/user-assets", label: t("nav.user_assets"), icon: Users },
         { href: "/optimize", label: t("nav.optimize_ai"), icon: Lightbulb },
-        { href: "/compliance", label: t("nav.compliance"), icon: Scale },
     ];
 
     const licenseNavItems = [
@@ -137,7 +136,26 @@ export function AppSidebar() {
         { href: "/license/gws", label: "Google Workspace", icon: ShieldCheck },
     ];
 
-    const navItems = selectedSystem === "license" ? licenseNavItems : pcNavItems;
+    const complianceNavItems = [
+        { href: "/compliance", label: "Dashboard", icon: LayoutDashboard, exact: true },
+        { href: "/compliance/audits", label: "Audits", icon: ClipboardCheck },
+        { href: "/compliance/reports", label: "Reports", icon: FileText },
+        { href: "/compliance/policies", label: "Policies", icon: Shield },
+        { href: "/compliance/standards", label: "Standards", icon: Scale },
+    ];
+
+    const getNavItems = () => {
+        switch (selectedSystem) {
+            case "license":
+                return licenseNavItems;
+            case "compliance":
+                return complianceNavItems;
+            default:
+                return pcNavItems;
+        }
+    };
+
+    const navItems = getNavItems();
 
     const auditsNavItems = [
         { href: "/audits/dashboard", label: t("nav.dashboard") },
@@ -153,6 +171,7 @@ export function AppSidebar() {
         { href: "/settings/projects", label: t("nav.manage_projects") },
         { href: "/settings/employees", label: t("nav.manage_employees") },
         { href: "/settings/system-users", label: t("nav.manage_system_users") },
+        { href: "/settings/activity-logs", label: t("nav.activity_logs") },
         { href: "/settings/asset-fields", label: t("nav.manage_asset_fields") },
         { href: "/settings/data-import", label: t("nav.data_import") },
     ];
@@ -172,7 +191,7 @@ export function AppSidebar() {
                                     <div className="w-[90%] flex items-center text-wrap">
                                         <span className="text-lg font-semibold">{selectedSystemLabel}</span>
                                     </div>
-                                    <ChevronsUpDown className="w-[10%] ml-1 h-4 w-4 text-muted-foreground" />
+                                    <ChevronsUpDown className="ml-1 h-4 w-4 text-muted-foreground" />
                                 </div>
                             </div>
                         </Button>

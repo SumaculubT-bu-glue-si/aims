@@ -46,7 +46,8 @@ import { Input } from "@/components/ui/input"
 import { PlusCircle, Upload, Loader, AlertTriangle, Trash2, ChevronDown } from "lucide-react"
 import { useI18n } from "@/hooks/use-i18n"
 import { useToast } from "@/hooks/use-toast"
-import { saveEmployee, deleteEmployee } from "./actions"
+import { useAuth } from "@/context/auth-context"
+import { getEmployeesFromGraphQL, getLocationsFromGraphQL, getProjectsFromGraphQL, saveEmployeeClient, deleteEmployeeClient } from "../../inventory/graphql-actions"
 import type { Employee, EmployeeFormValues } from "@/lib/schemas/settings"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { employeeSchema as getEmployeeSchema } from "@/lib/schemas/settings"
@@ -56,19 +57,22 @@ import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
+import { Skeleton } from "@/components/ui/skeleton"
 
 type EmployeesClientPageProps = {
-  initialEmployees: Employee[];
-  initialLocations: string[];
-  initialProjects: string[];
-  initialError: string | null;
+  initialEmployees?: Employee[];
+  initialLocations?: string[];
+  initialProjects?: string[];
+  initialError?: string | null;
 }
 
-export default function EmployeesClientPage({ initialEmployees, initialLocations, initialProjects, initialError }: EmployeesClientPageProps) {
+export default function EmployeesClientPage({ initialEmployees, initialLocations, initialProjects, initialError }: EmployeesClientPageProps = {}) {
+  const { user, loading: authLoading } = useAuth();
   const [employees, setEmployees] = useState<Employee[]>(initialEmployees || []);
   const [locations, setLocations] = useState<string[]>(initialLocations || []);
   const [projects, setProjects] = useState<string[]>(initialProjects || []);
-  const [error, setError] = useState<string | null>(initialError);
+  const [error, setError] = useState<string | null>(initialError || null);
+  const [isLoading, setIsLoading] = useState(!initialEmployees);
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false)
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -85,16 +89,79 @@ export default function EmployeesClientPage({ initialEmployees, initialLocations
     setEmployees(initialEmployees || []);
     setLocations(initialLocations || []);
     setProjects(initialProjects || []);
-  }, [initialEmployees, initialLocations, initialProjects]);
+  }, [!!initialEmployees, !!initialLocations, !!initialProjects]);
 
   useEffect(() => {
-    setError(initialError);
-  }, [initialError]);
+    setError(initialError || null);
+  }, [!!initialError]);
+
+  // Fetch data when authenticated (only if not provided as props)
+  useEffect(() => {
+    async function fetchData() {
+      if (!authLoading && user && !initialEmployees) {
+        setIsLoading(true);
+        try {
+          const [employeesResult, locationsResult, projectsResult] = await Promise.all([
+            getEmployeesFromGraphQL(),
+            getLocationsFromGraphQL(),
+            getProjectsFromGraphQL()
+          ]);
+
+          if (employeesResult.error) {
+            setError('Failed to fetch employees');
+          } else {
+            setEmployees(employeesResult.employees as Employee[]);
+          }
+
+          if (locationsResult.error) {
+            setError('Failed to fetch locations');
+          } else {
+            setLocations(locationsResult.locations.map(l => l.name));
+          }
+
+          if (projectsResult.error) {
+            setError('Failed to fetch projects');
+          } else {
+            setProjects(projectsResult.projects.map(p => p.name));
+          }
+        } catch (error) {
+          setError('Failed to fetch data');
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    }
+    fetchData();
+  }, [authLoading, user, !!initialEmployees]);
+
+  // Show loading state while authentication is in progress
+  if (authLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Redirect to login if not authenticated
+  if (!user) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p>Redirecting to login...</p>
+        </div>
+      </div>
+    );
+  }
 
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeSchema),
     defaultValues: {
-      employeeId: "",
+      employee_id: "",
       name: "",
       email: "",
       location: "",
@@ -104,14 +171,14 @@ export default function EmployeesClientPage({ initialEmployees, initialLocations
 
   const handleAddNew = () => {
     setEditingEmployee(null)
-    form.reset({ employeeId: "", name: "", email: "", location: "", projects: [] })
+    form.reset({ employee_id: "", name: "", email: "", location: "", projects: [] })
     setIsFormDialogOpen(true)
   }
 
   const handleEdit = (employee: Employee) => {
     setEditingEmployee(employee)
     form.reset({
-      employeeId: employee.employeeId,
+      employee_id: employee.employee_id,
       name: employee.name,
       email: employee.email || "",
       location: employee.location || "",
@@ -124,13 +191,33 @@ export default function EmployeesClientPage({ initialEmployees, initialLocations
     if (!editingEmployee) return;
 
     startTransition(async () => {
-      const result = await deleteEmployee(editingEmployee.id)
+      const result = await deleteEmployeeClient(editingEmployee.id)
       if (result.success) {
         toast({
           title: t('actions.success'),
           description: t(result.message)
         })
-        router.refresh();
+        
+        // Refresh the employees data from GraphQL
+        try {
+          const employeesResult = await getEmployeesFromGraphQL();
+          if (employeesResult.error) {
+            toast({
+              title: t('actions.error'),
+              description: 'Failed to refresh employee data',
+              variant: "destructive"
+            });
+          } else {
+            setEmployees(employeesResult.employees as Employee[]);
+          }
+        } catch (error) {
+          console.error('Error refreshing employees:', error);
+          toast({
+            title: t('actions.error'),
+            description: 'Failed to refresh employee data',
+            variant: "destructive"
+          });
+        }
       } else {
         toast({
           title: t('actions.error'),
@@ -140,6 +227,7 @@ export default function EmployeesClientPage({ initialEmployees, initialLocations
       }
       setIsDeleteDialogOpen(false);
       setIsFormDialogOpen(false);
+      setEditingEmployee(null);
     })
   }
 
@@ -149,7 +237,16 @@ export default function EmployeesClientPage({ initialEmployees, initialLocations
 
   function onSubmit(values: EmployeeFormValues) {
     startTransition(async () => {
-      const result = await saveEmployee(editingEmployee ? editingEmployee.id : null, values)
+      // Map EmployeeFormValues to the expected format
+      const mappedValues = {
+        employeeId: values.employee_id,
+        name: values.name,
+        email: values.email,
+        department: values.department,
+        location: values.location,
+        projects: values.projects
+      };
+      const result = await saveEmployeeClient(editingEmployee ? editingEmployee.id : null, mappedValues)
       if (result.success) {
         toast({
           title: t('actions.success'),
@@ -157,7 +254,27 @@ export default function EmployeesClientPage({ initialEmployees, initialLocations
         })
         setIsFormDialogOpen(false)
         setEditingEmployee(null)
-        router.refresh();
+        
+        // Refresh the employees data from GraphQL
+        try {
+          const employeesResult = await getEmployeesFromGraphQL();
+          if (employeesResult.error) {
+            toast({
+              title: t('actions.error'),
+              description: 'Failed to refresh employee data',
+              variant: "destructive"
+            });
+          } else {
+            setEmployees(employeesResult.employees as Employee[]);
+          }
+        } catch (error) {
+          console.error('Error refreshing employees:', error);
+          toast({
+            title: t('actions.error'),
+            description: 'Failed to refresh employee data',
+            variant: "destructive"
+          });
+        }
       } else {
         // Handle duplicate email error specifically
         if (result.errorType === 'duplicate_email') {
@@ -196,19 +313,51 @@ export default function EmployeesClientPage({ initialEmployees, initialLocations
               </TableRow>
             </TableHeader>
             <TableBody>
-              {employees.map((employee) => (
-                <TableRow key={employee.id} onClick={() => handleEdit(employee)} className="cursor-pointer hover:bg-muted/50">
-                  <TableCell className="py-2 px-2 font-mono text-xs">{employee.employeeId}</TableCell>
-                  <TableCell className="py-2 px-2">{employee.name}</TableCell>
-                  <TableCell className="py-2 px-2">{employee.email}</TableCell>
-                  <TableCell className="py-2 px-2">{employee.location}</TableCell>
-                  <TableCell className="py-2 px-2">
-                    <div className="flex flex-wrap gap-1">
-                      {employee.projects?.map(p => <Badge key={p} variant="secondary">{p}</Badge>)}
-                    </div>
+              {isLoading ? (
+                // Skeleton loading state
+                Array.from({ length: 5 }).map((_, index) => (
+                  <TableRow key={`skeleton-${index}`}>
+                    <TableCell className="py-2 px-2">
+                      <Skeleton className="h-4 w-20" />
+                    </TableCell>
+                    <TableCell className="py-2 px-2">
+                      <Skeleton className="h-4 w-32" />
+                    </TableCell>
+                    <TableCell className="py-2 px-2">
+                      <Skeleton className="h-4 w-40" />
+                    </TableCell>
+                    <TableCell className="py-2 px-2">
+                      <Skeleton className="h-4 w-24" />
+                    </TableCell>
+                    <TableCell className="py-2 px-2">
+                      <div className="flex flex-wrap gap-1">
+                        <Skeleton className="h-6 w-16" />
+                        <Skeleton className="h-6 w-20" />
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : employees.length > 0 ? (
+                employees.map((employee) => (
+                  <TableRow key={employee.id} onClick={() => handleEdit(employee)} className="cursor-pointer hover:bg-muted/50">
+                    <TableCell className="py-2 px-2 font-mono text-xs">{employee.employee_id}</TableCell>
+                    <TableCell className="py-2 px-2">{employee.name}</TableCell>
+                    <TableCell className="py-2 px-2">{employee.email}</TableCell>
+                    <TableCell className="py-2 px-2">{employee.location}</TableCell>
+                    <TableCell className="py-2 px-2">
+                      <div className="flex flex-wrap gap-1">
+                        {employee.projects?.map(p => <Badge key={p} variant="secondary">{p}</Badge>)}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                    {t('pages.settings.employees.no_employees_found')}
                   </TableCell>
                 </TableRow>
-              ))}
+              )}
             </TableBody>
           </Table>
         </div>
@@ -265,7 +414,7 @@ export default function EmployeesClientPage({ initialEmployees, initialLocations
               <div className="grid grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
-                  name="employeeId"
+                  name="employee_id"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('pages.settings.employees.dialog_form_label_id')}</FormLabel>

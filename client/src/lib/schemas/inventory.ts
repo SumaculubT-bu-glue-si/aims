@@ -1,9 +1,15 @@
 
 import { z } from 'zod';
 import { graphqlQuery } from '@/lib/graphql-client';
+import { FrontendAsset, Employee, Project, Location, PcFormValues } from '@/lib/types/index';
 
+// Re-export types for external use
+export type { PcFormValues };
+
+// Create Zod schema from centralized PcFormValues type
 export const pcSchema = z.object({
   id: z.string().optional(),
+  assetId: z.string().optional(),
   type: z.string().optional(),
   hostname: z.string().optional(),
   manufacturer: z.string().optional(),
@@ -26,9 +32,6 @@ export const pcSchema = z.object({
   depreciationDept: z.string().optional(),
   cpu: z.string().optional(),
   memory: z.string().optional(),
-  monitorAssetId: z.string().optional(),
-  monitorSize: z.string().optional(),
-  supportedCables: z.string().optional(),
   location: z.string().optional(),
   status: z.string().optional(),
   previousUser: z.string().optional(),
@@ -47,48 +50,8 @@ export const pcSchema = z.object({
   notes5: z.string().optional(),
 });
 
-export type PcFormValues = z.infer<typeof pcSchema>;
-
-export interface Employee {
-  id: string;
-  name: string;
-  employeeId: string;
-  email: string;
-  department: string;
-  projects: string[];
-}
-
-export interface Project {
-  id: string;
-  name: string;
-  description: string;
-  status: string;
-  visible: boolean;
-  order: number;
-}
-
-export interface Location {
-  id: string;
-  name: string;
-  address: string;
-  city: string;
-  state: string;
-  country: string;
-  postal_code: string;
-  phone: string;
-  email: string;
-  manager: string;
-  status: string;
-  visible: boolean;
-  order: number;
-}
-
-export type PcAsset = PcFormValues & {
-  id: string;
-  purchasePrice: string;
-  purchasePriceTaxIncluded: string;
-  depreciationYears: string;
-};
+// Use centralized types - no duplicate definitions
+export type PcAsset = FrontendAsset;
 
 export async function getLocationsFromGraphQL(): Promise<{ locations: { id: string; name: string; }[]; error: string | null }> {
   try {
@@ -120,4 +83,5 @@ export async function getLocationsFromGraphQL(): Promise<{ locations: { id: stri
   } catch (error: any) {
     return { locations: [], error: error.message || 'Failed to fetch locations' };
   }
+}
 

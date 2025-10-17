@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useTransition } from "react"
+import { useState, useTransition, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import {
   Table,
@@ -26,7 +26,8 @@ import {
 import { Trash2, AlertTriangle, UserPlus, Edit } from "lucide-react"
 import { useI18n } from "@/hooks/use-i18n"
 import { useToast } from "@/hooks/use-toast"
-import { deleteSystemUser } from "./actions"
+import { useAuth } from "@/context/auth-context"
+import { getUsersFromGraphQL, saveUserClient, deleteUserClient } from "../../inventory/graphql-actions"
 import type { DatabaseUser } from "@/lib/schemas/settings"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -40,22 +41,67 @@ type SystemUsersClientPageProps = {
 }
 
 export default function SystemUsersClientPage({ initialUsers, initialError }: SystemUsersClientPageProps) {
+  const { user, loading: authLoading } = useAuth();
   const [users, setUsers] = useState<DatabaseUser[]>(initialUsers || []);
   const [error, setError] = useState<string | null>(initialError);
+  const [isLoading, setIsLoading] = useState(true);
   const [isPending, startTransition] = useTransition()
   const { t } = useI18n();
   const { toast } = useToast()
   const router = useRouter();
 
+  // Fetch data when authenticated
+  useEffect(() => {
+    async function fetchData() {
+      if (!authLoading && user) {
+        setIsLoading(true);
+        try {
+          const usersResult = await getUsersFromGraphQL();
+
+          if (usersResult.error) {
+            setError('Failed to fetch users');
+          } else {
+            setUsers(usersResult.users);
+          }
+        } catch (error) {
+          setError('Failed to fetch data');
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    }
+    fetchData();
+  }, [authLoading, user]);
+
   const handleDelete = (user: DatabaseUser) => {
     startTransition(async () => {
-      const result = await deleteSystemUser(user.id)
+      const result = await deleteUserClient(user.id)
       if (result.success) {
         toast({
           title: t('actions.success'),
           description: t(result.message)
         })
-        router.refresh();
+        
+        // Refresh the users data from GraphQL
+        try {
+          const usersResult = await getUsersFromGraphQL();
+          if (usersResult.error) {
+            toast({
+              title: t('actions.error'),
+              description: 'Failed to refresh user data',
+              variant: "destructive"
+            });
+          } else {
+            setUsers(usersResult.users);
+          }
+        } catch (error) {
+          console.error('Error refreshing users:', error);
+          toast({
+            title: t('actions.error'),
+            description: 'Failed to refresh user data',
+            variant: "destructive"
+          });
+        }
       } else {
         toast({
           title: t('actions.error'),
@@ -90,7 +136,32 @@ export default function SystemUsersClientPage({ initialUsers, initialError }: Sy
           </TableRow>
         </TableHeader>
         <TableBody>
-          {users.map((user) => (
+          {isLoading ? (
+            // Loading skeleton
+            Array.from({ length: 3 }).map((_, index) => (
+              <TableRow key={`loading-${index}`}>
+                <TableCell>
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 bg-muted animate-pulse rounded-full"></div>
+                    <div>
+                      <div className="h-4 bg-muted animate-pulse rounded w-24 mb-1"></div>
+                      <div className="h-3 bg-muted animate-pulse rounded w-16"></div>
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="h-4 bg-muted animate-pulse rounded w-32"></div>
+                </TableCell>
+                <TableCell>
+                  <div className="h-4 bg-muted animate-pulse rounded w-20"></div>
+                </TableCell>
+                <TableCell className="text-right">
+                  <div className="h-8 bg-muted animate-pulse rounded w-16 ml-auto"></div>
+                </TableCell>
+              </TableRow>
+            ))
+          ) : users.length > 0 ? (
+            users.map((user) => (
             <TableRow key={user.id}>
               <TableCell>
                 <div className="flex items-center gap-3">
@@ -147,14 +218,37 @@ export default function SystemUsersClientPage({ initialUsers, initialError }: Sy
                 </div>
               </TableCell>
             </TableRow>
-          ))}
+            ))
+          ) : (
+            <TableRow>
+              <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                No users found
+              </TableCell>
+            </TableRow>
+          )}
         </TableBody>
       </Table>
     );
   }
 
   return (
-    <Card>
+    <>
+      {authLoading ? (
+        <div className="flex h-screen w-screen items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+            <p>Loading...</p>
+          </div>
+        </div>
+      ) : !user ? (
+        <div className="flex h-screen w-screen items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+            <p>Redirecting to login...</p>
+          </div>
+        </div>
+      ) : (
+        <Card>
       <CardHeader>
         <div className="flex justify-between items-center">
           <div>
@@ -176,5 +270,7 @@ export default function SystemUsersClientPage({ initialUsers, initialError }: Sy
         {renderContent()}
       </CardContent>
     </Card>
+      )}
+    </>
   )
 }

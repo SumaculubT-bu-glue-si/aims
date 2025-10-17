@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { employees as initialEmployees, subscriptions as initialSubscriptions } from '@/lib/mock-data';
-import type { Subscription, Employee, Account, AssignedUser } from '@/lib/types';
+import type { Subscription, Employee, Account, AssignedUser } from '@/lib/types/index';
 import { User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';

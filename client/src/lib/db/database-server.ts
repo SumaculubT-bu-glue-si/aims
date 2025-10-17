@@ -9,7 +9,7 @@ class DatabaseServer {
 
   constructor() {
     this.dbPath = path.join(process.cwd(), 'src', 'lib', 'db', 'data');
-    this.apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    this.apiBaseUrl = process.env.NEXT_PUBLIC_API_URL || 'https://assetwise.glue-si.com';
   }
 
   async initializeCollections(): Promise<void> {
@@ -52,6 +52,8 @@ class DatabaseServer {
         return inventory.monitors || [];
       case 'phones':
         return inventory.smartphones || [];
+      case 'others':
+        return inventory.others || [];
       case 'projects':
         return masterData.projects.map((name, index) => ({
           id: `proj_${index + 1}`,
@@ -197,6 +199,27 @@ class DatabaseServer {
           variables = { type: 'smartphones' };
           break;
 
+        case 'others':
+          query = `
+            query GetAssets($type: String) {
+              assets(type: $type) {
+                data {
+                  id
+                  type
+                  manufacturer
+                  model
+                  serial_number
+                  location
+                  status
+                  user_id
+                  notes
+                }
+              }
+            }
+          `;
+          variables = { type: 'other' };
+          break;
+
         case 'employees':
           query = `
             query GetEmployees {
@@ -286,6 +309,7 @@ class DatabaseServer {
         case 'pcs':
         case 'monitors':
         case 'phones':
+        case 'others':
           data = result.data?.assets?.data || [];
           break;
         case 'employees':
@@ -350,6 +374,16 @@ class DatabaseServer {
           notes3: item.notes3 || '',
           notes4: item.notes4 || '',
           notes5: item.notes5 || '',
+          // Preserve employee relationship data if available
+          ...(item.employee && {
+            employee: {
+              id: item.employee.id,
+              employeeId: item.employee.employee_id,
+              name: item.employee.name,
+              email: item.employee.email,
+              location: item.employee.location
+            }
+          })
         };
 
       case 'monitors':
@@ -362,6 +396,16 @@ class DatabaseServer {
           status: item.status || '',
           userId: item.user_id || '',
           notes: item.notes || '',
+          // Preserve employee relationship data if available
+          ...(item.employee && {
+            employee: {
+              id: item.employee.id,
+              employeeId: item.employee.employee_id,
+              name: item.employee.name,
+              email: item.employee.email,
+              location: item.employee.location
+            }
+          })
         };
 
       case 'phones':
@@ -374,6 +418,39 @@ class DatabaseServer {
           status: item.status || '',
           userId: item.user_id || '',
           notes: item.notes || '',
+          // Preserve employee relationship data if available
+          ...(item.employee && {
+            employee: {
+              id: item.employee.id,
+              employeeId: item.employee.employee_id,
+              name: item.employee.name,
+              email: item.employee.email,
+              location: item.employee.location
+            }
+          })
+        };
+
+      case 'others':
+        return {
+          id: item.id,
+          type: item.type || 'other',
+          manufacturer: item.manufacturer || '',
+          model: item.model || '',
+          serialNumber: item.serial_number || '',
+          location: item.location || '',
+          status: item.status || '',
+          userId: item.user_id || '',
+          notes: item.notes || '',
+          // Preserve employee relationship data if available
+          ...(item.employee && {
+            employee: {
+              id: item.employee.id,
+              employeeId: item.employee.employee_id,
+              name: item.employee.name,
+              email: item.employee.email,
+              location: item.employee.location
+            }
+          })
         };
 
       case 'locations':

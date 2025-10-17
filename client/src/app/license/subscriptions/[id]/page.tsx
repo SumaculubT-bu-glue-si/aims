@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { subscriptions as initialSubscriptions, employees as initialEmployees } from '@/lib/mock-data';
-import type { BillingCycle, Account, Subscription, AssignedUser, Employee } from '@/lib/types';
+import type { BillingCycle, Account, Subscription, AssignedUser, Employee } from '@/lib/types/index';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';

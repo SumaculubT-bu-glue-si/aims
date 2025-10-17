@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/sidebar';
 import { Briefcase, Users, LayoutDashboard, Package, ShieldCheck } from 'lucide-react';
 import SubscriptionForm from '@/components/subscription-form';
-import type { Subscription } from '@/lib/types';
+import type { Subscription } from '@/lib/types/index';
 import { SystemSwitcher } from '@/components/system-switcher';
 import { toast } from '@/hooks/use-toast';
 

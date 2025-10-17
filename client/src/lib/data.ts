@@ -1,6 +1,16 @@
 
 
 import { type AuditPlan } from "@/app/audits/page"
+import { type AssetField } from "@/lib/types/index"
+
+// Helper function to add missing fields to AssetField objects
+function addAssetFieldTimestamps(field: any): AssetField {
+  return {
+    ...field,
+    createdAt: field.createdAt || '2023-01-01T00:00:00Z',
+    updatedAt: field.updatedAt || '2023-01-01T00:00:00Z'
+  };
+}
 
 export const upcomingRenewals = [
   { id: 1, name: "Adobe Creative Cloud", type: "Software", daysLeft: 7, cost: 375000 },
@@ -235,6 +245,13 @@ export const inventory = {
       { id: "SP004", model: "iPhone 15", userId: "田中 美咲", project: "Project Phoenix", location: "Tokyo HQ", assignedDate: "2023-09-20", status: "In Storage" },
       { id: "SP005", model: "Sony Xperia 1 V", userId: "渡辺 健太", project: "Development", location: "Sapporo R&D", assignedDate: "2023-11-15", status: "Active" }
     ],
+    others: [
+      { id: "OT001", type: "other", manufacturer: "Apple", model: "iPad Pro 12.9", serial_number: "SN-OT001XYZ", location: "Tokyo HQ", status: "保管中", user_id: "", notes: "Tablet for presentations" },
+      { id: "OT002", type: "other", manufacturer: "Microsoft", model: "Surface Pro 9", serial_number: "SN-OT002ABC", location: "Osaka Branch", status: "利用中", user_id: "佐藤 太郎", notes: "2-in-1 device for mobile work" },
+      { id: "OT003", type: "other", manufacturer: "Samsung", model: "Galaxy Tab S9", serial_number: "SN-OT003DEF", location: "Fukuoka Branch", status: "保管中", user_id: "", notes: "Android tablet for testing" },
+      { id: "OT004", type: "other", manufacturer: "Lenovo", model: "ThinkPad X1 Fold", serial_number: "SN-OT004GHI", location: "Sapporo R&D", status: "利用中", user_id: "高橋 一郎", notes: "Foldable laptop for R&D" },
+      { id: "OT005", type: "other", manufacturer: "Dell", model: "OptiPlex 7090", serial_number: "SN-OT005JKL", location: "Nagoya Sales", status: "保管中", user_id: "", notes: "Desktop computer for office use" }
+    ]
 };
 
 export const masterData = {
@@ -244,12 +261,13 @@ export const masterData = {
     ...new Set([
         ...inventory.pcs.map(pc => pc.userId),
         ...inventory.monitors.map(m => m.userId),
-        ...inventory.smartphones.map(s => s.userId)
+        ...inventory.smartphones.map(s => s.userId),
+        ...inventory.others.map(o => o.user_id)
     ].filter(Boolean))
   ],
   assetFields: [
-    { id: 'field_01', order: 1, systemName: 'id', displayName: '管理番号', dataType: 'Text' as const, visible: true, notes: '一意の資産ID' },
-    { id: 'field_08', order: 2, systemName: 'location', displayName: '所在', dataType: 'Text' as const, visible: true, notes: '' },
+    { id: 'field_01', order: 1, systemName: 'id', displayName: '管理番号', dataType: 'Text' as const, visible: true, notes: '一意の資産ID', createdAt: '2023-01-01T00:00:00Z', updatedAt: '2023-01-01T00:00:00Z' },
+    { id: 'field_08', order: 2, systemName: 'location', displayName: '所在', dataType: 'Text' as const, visible: true, notes: '', createdAt: '2023-01-01T00:00:00Z', updatedAt: '2023-01-01T00:00:00Z' },
     { id: 'field_11', order: 3, systemName: 'userId', displayName: '利用者', dataType: 'Text' as const, visible: true, notes: '' },
     { id: 'field_09', order: 4, systemName: 'status', displayName: '状態', dataType: 'Text' as const, visible: true, notes: '例: 使用中, 保管中, 修理中, 廃棄済' },
     { id: 'field_37', order: 5, systemName: 'type', displayName: '資産タイプ', dataType: 'Text' as const, visible: true, notes: '例: pc, monitor, phone, others' },
@@ -286,7 +304,7 @@ export const masterData = {
     { id: 'field_34', order: 35, systemName: 'notes3', displayName: '備考3', dataType: 'Text' as const, visible: true, notes: 'カスタム備考3' },
     { id: 'field_35', order: 36, systemName: 'notes4', displayName: '備考4', dataType: 'Text' as const, visible: true, notes: 'カスタム備考4' },
     { id: 'field_36', order: 37, systemName: 'notes5', displayName: '備考5', dataType: 'Text' as const, visible: true, notes: 'カスタム備考5' },
-  ],
+  ].map(addAssetFieldTimestamps),
 };
 
 export const auditPlans: AuditPlan[] = [];

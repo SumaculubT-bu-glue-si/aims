@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { employees as initialEmployees, subscriptions as initialSubscriptions } from '@/lib/mock-data';
-import type { Subscription, Employee } from '@/lib/types';
+import type { Subscription, Employee } from '@/lib/types/index';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';

@@ -31,7 +31,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
 import { Trash2, PlusCircle, AlertTriangle, Check, ChevronsUpDown, SlidersHorizontal, Laptop, Monitor, Smartphone, ChevronDown, ArrowUp, ArrowDown, Calendar as CalendarIcon, PackageCheck, Package, Search, User, Briefcase, Edit, Loader2 } from "lucide-react"
 import { useI18n } from "@/hooks/use-i18n"
-import { updateAsset, getAssetsOptimized, getAvailableAssets } from "./actions"
+import { useAuth } from "@/context/auth-context"
+import { getLocationsFromGraphQL, getProjectsFromGraphQL } from "../inventory/graphql-actions"
+import { graphqlQuery, INVENTORY_QUERIES } from "@/lib/graphql-client"
 import { Label } from "@/components/ui/label"
 import type { PcAsset } from "@/lib/schemas/inventory"
 import { type AssetField } from "@/lib/schemas/settings"
@@ -145,6 +147,7 @@ export default function UserAssetsClientPage({
 }: UserAssetsClientPageProps) {
     const { t } = useI18n()
     const { toast } = useToast()
+    const { user, loading: authLoading } = useAuth()
 
     const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
     const [displayedEmployees, setDisplayedEmployees] = useState<string[]>([]);
@@ -157,6 +160,258 @@ export default function UserAssetsClientPage({
 
     const [masterData, setMasterData] = useState(initialMasterData);
     const [inventory, setInventory] = useState(initialInventory);
+    const [isLoading, setIsLoading] = useState(true);
+
+    // Client-side functions for fetching assets
+    const getAssetsOptimized = async (filters?: {
+        type?: string;
+        status?: string;
+        location?: string;
+        user_id?: string;
+        page?: number;
+        perPage?: number;
+        onlyAssigned?: boolean;
+    }) => {
+        try {
+            const variables: any = {
+                first: filters?.perPage || 50,
+                page: filters?.page || 1,
+            };
+            
+            if (filters?.type) variables.type = filters.type;
+            if (filters?.status) variables.status = filters.status;
+            if (filters?.location) variables.location = filters.location;
+            if (filters?.user_id) variables.user_id = filters.user_id;
+
+            const result = await graphqlQuery(INVENTORY_QUERIES.GET_ASSETS, variables);
+
+            if (result.errors) {
+                console.error('GraphQL errors:', result.errors);
+                return { success: false, error: result.errors[0]?.message || 'Failed to fetch assets' };
+            }
+
+            if (!result.data?.assets?.data) {
+                return { success: true, data: [] };
+            }
+
+            let assets = result.data.assets.data.map((asset: any) => ({
+                id: asset.id,
+                asset_id: asset.asset_id,
+                type: asset.type,
+                hostname: asset.hostname,
+                manufacturer: asset.manufacturer,
+                model: asset.model,
+                part_number: asset.part_number,
+                serial_number: asset.serial_number,
+                form_factor: asset.form_factor,
+                os: asset.os,
+                os_bit: asset.os_bit,
+                office_suite: asset.office_suite,
+                software_license_key: asset.software_license_key,
+                wired_mac_address: asset.wired_mac_address,
+                wired_ip_address: asset.wired_ip_address,
+                wireless_mac_address: asset.wireless_mac_address,
+                wireless_ip_address: asset.wireless_ip_address,
+                purchase_date: asset.purchase_date,
+                purchase_price: asset.purchase_price,
+                depreciation_years: asset.depreciation_years,
+                depreciation_dept: asset.depreciation_dept,
+                cpu: asset.cpu,
+                memory: asset.memory,
+                location: asset.location,
+                status: asset.status,
+                previous_user: asset.previous_user,
+                user_id: asset.user_id,
+                employee: asset.employee,
+                usage_start_date: asset.usage_start_date,
+                usage_end_date: asset.usage_end_date,
+                carry_in_out_agreement: asset.carry_in_out_agreement,
+                last_updated: asset.last_updated,
+                updated_by: asset.updated_by,
+                notes: asset.notes,
+                project: asset.project,
+                notes1: asset.notes1,
+                notes2: asset.notes2,
+                notes3: asset.notes3,
+                notes4: asset.notes4,
+                notes5: asset.notes5,
+            }));
+
+            // Filter for only assigned assets if requested
+            if (filters?.onlyAssigned) {
+                assets = assets.filter((asset: any) => asset.user_id && asset.user_id.trim() !== '');
+            }
+
+            return { success: true, data: assets };
+        } catch (error) {
+            console.error('Error fetching assets:', error);
+            return { 
+                success: false, 
+                error: error instanceof Error ? error.message : 'Failed to fetch assets' 
+            };
+        }
+    };
+
+    const getAvailableAssets = async (filters?: {
+        type?: string;
+        status?: string;
+        location?: string;
+        page?: number;
+        perPage?: number;
+    }) => {
+        try {
+            const perPage = filters?.perPage || 1000;
+            let allAssets: any[] = [];
+            let currentPage = 1;
+            let hasMorePages = true;
+
+            // Fetch all pages to get all available assets
+            while (hasMorePages) {
+                const variables: any = {
+                    first: perPage,
+                    page: currentPage,
+                };
+                
+                if (filters?.type) variables.type = filters.type;
+                if (filters?.status) variables.status = filters.status;
+                if (filters?.location) variables.location = filters.location;
+
+                const result = await graphqlQuery(INVENTORY_QUERIES.GET_ASSETS, variables);
+
+                if (result.errors) {
+                    console.error('GraphQL errors:', result.errors);
+                    return { success: false, error: result.errors[0]?.message || 'Failed to fetch available assets' };
+                }
+
+                if (!result.data?.assets?.data) {
+                    break;
+                }
+
+                // Add assets from this page
+                allAssets = allAssets.concat(result.data.assets.data);
+
+                // Check if there are more pages
+                const paginatorInfo = result.data.assets.paginatorInfo;
+                hasMorePages = paginatorInfo?.hasMorePages || false;
+                currentPage++;
+
+                // Safety check to prevent infinite loops
+                if (currentPage > 50) {
+                    console.warn('Stopping pagination after 50 pages to prevent infinite loop');
+                    break;
+                }
+            }
+
+            // Filter for only unassigned assets
+            const availableAssets = allAssets
+                .filter((asset: any) => !asset.user_id || asset.user_id.trim() === '')
+                .map((asset: any) => ({
+                    id: asset.id,
+                    asset_id: asset.asset_id,
+                    type: asset.type,
+                    hostname: asset.hostname,
+                    manufacturer: asset.manufacturer,
+                    model: asset.model,
+                    part_number: asset.part_number,
+                    serial_number: asset.serial_number,
+                    form_factor: asset.form_factor,
+                    os: asset.os,
+                    os_bit: asset.os_bit,
+                    office_suite: asset.office_suite,
+                    software_license_key: asset.software_license_key,
+                    wired_mac_address: asset.wired_mac_address,
+                    wired_ip_address: asset.wired_ip_address,
+                    wireless_mac_address: asset.wireless_mac_address,
+                    wireless_ip_address: asset.wireless_ip_address,
+                    purchase_date: asset.purchase_date,
+                    purchase_price: asset.purchase_price,
+                    depreciation_years: asset.depreciation_years,
+                    depreciation_dept: asset.depreciation_dept,
+                    cpu: asset.cpu,
+                    memory: asset.memory,
+                    location: asset.location,
+                    status: asset.status,
+                    previous_user: asset.previous_user,
+                    user_id: asset.user_id,
+                    employee: asset.employee,
+                    usage_start_date: asset.usage_start_date,
+                    usage_end_date: asset.usage_end_date,
+                    carry_in_out_agreement: asset.carry_in_out_agreement,
+                    last_updated: asset.last_updated,
+                    updated_by: asset.updated_by,
+                    notes: asset.notes,
+                    project: asset.project,
+                    notes1: asset.notes1,
+                    notes2: asset.notes2,
+                    notes3: asset.notes3,
+                    notes4: asset.notes4,
+                    notes5: asset.notes5,
+                }));
+
+            return { success: true, data: availableAssets };
+        } catch (error) {
+            console.error('Error fetching available assets:', error);
+            return { 
+                success: false, 
+                error: error instanceof Error ? error.message : 'Failed to fetch available assets' 
+            };
+        }
+    };
+
+    const updateAsset = async (assetId: string, updateData: any) => {
+        try {
+            const mutation = `
+                mutation UpdateAsset($asset: AssetInput!) {
+                    upsertAsset(asset: $asset) {
+                        id
+                        asset_id
+                        type
+                        model
+                        location
+                        status
+                        user_id
+                        usage_start_date
+                        usage_end_date
+                        notes
+                    }
+                }
+            `;
+
+            // Build the asset object with only the fields that are provided
+            const assetInput: any = {
+                asset_id: assetId,
+            };
+            
+            // Only add fields that are actually provided in updateData
+            if (updateData.type !== undefined) assetInput.type = updateData.type;
+            if (updateData.model !== undefined) assetInput.model = updateData.model;
+            if (updateData.location !== undefined) assetInput.location = updateData.location;
+            if (updateData.status !== undefined) assetInput.status = updateData.status;
+            if (updateData.user_id !== undefined) assetInput.user_id = updateData.user_id;
+            if (updateData.usage_start_date !== undefined) assetInput.usage_start_date = updateData.usage_start_date;
+            if (updateData.usage_end_date !== undefined) assetInput.usage_end_date = updateData.usage_end_date;
+            if (updateData.notes !== undefined) assetInput.notes = updateData.notes;
+
+            const variables = {
+                asset: assetInput
+            };
+
+            const result = await graphqlQuery(mutation, variables);
+
+            if (result.errors) {
+                console.error('GraphQL errors:', result.errors);
+                return { success: false, error: result.errors[0]?.message || 'Failed to update asset' };
+            }
+
+            return { success: true };
+        } catch (error) {
+            console.error('Error updating asset:', error);
+            return { 
+                success: false, 
+                error: error instanceof Error ? error.message : 'Failed to update asset' 
+            };
+        }
+    };
 
     const [isEmployeeSelectorOpen, setIsEmployeeSelectorOpen] = useState(false)
     const [isAssetSelectorOpen, setIsAssetSelectorOpen] = useState(false)
@@ -357,11 +612,11 @@ export default function UserAssetsClientPage({
                 perPage: 1000 // Load first 100 assigned assets
             });
 
-            if (result.assets) {
-                const transformedAssets = result.assets.map(asset => ({
+            if (result.data) {
+                const transformedAssets = result.data.map((asset: any) => ({
                     id: asset.asset_id,
-                    asset_id: asset.asset_id,
-                    type: asset.type,
+                    assetId: asset.asset_id,
+                    type: asset.type as any,
                     hostname: asset.hostname || '',
                     manufacturer: asset.manufacturer || '',
                     model: asset.model || '',
@@ -378,16 +633,16 @@ export default function UserAssetsClientPage({
                     wirelessIpAddress: asset.wireless_ip_address || '',
                     purchaseDate: asset.purchase_date || '',
                     purchasePrice: asset.purchase_price?.toString() || '',
-                    purchasePriceTaxIncluded: asset.purchase_price?.toString() || '', // Add missing required field
+                    purchasePriceTaxIncluded: asset.purchase_price?.toString() || '',
                     depreciationYears: asset.depreciation_years?.toString() || '',
                     depreciationDept: asset.depreciation_dept || '',
                     cpu: asset.cpu || '',
                     memory: asset.memory || '',
                     location: asset.location || '',
-                    status: asset.status || '',
+                    status: asset.status as any || '',
                     previousUser: asset.previous_user || '',
-                    userId: asset.employee?.name || asset.user_id || '', // Employee name for display
-                    employeeId: asset.employee?.id || asset.user_id || '', // Employee ID for internal operations
+                    userId: asset.employee?.name || asset.user_id || '',
+                    employeeId: asset.employee?.id || asset.user_id || '',
                     usageStartDate: asset.usage_start_date || '',
                     usageEndDate: asset.usage_end_date || '',
                     carryInOutAgreement: asset.carry_in_out_agreement || '',
@@ -400,6 +655,8 @@ export default function UserAssetsClientPage({
                     notes3: asset.notes3 || '',
                     notes4: asset.notes4 || '',
                     notes5: asset.notes5 || '',
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
                 }));
 
                 setAllAssets(transformedAssets);
@@ -407,7 +664,7 @@ export default function UserAssetsClientPage({
                 // Extract unique employees from assets and update masterData
                 const uniqueEmployees = new Map<string, { id: string; name: string }>();
 
-                result.assets?.forEach(asset => {
+                result.data?.forEach((asset: any) => {
                     if (asset.employee && asset.employee.id && asset.employee.name) {
                         uniqueEmployees.set(asset.employee.name, {
                             id: asset.employee.id,
@@ -425,10 +682,10 @@ export default function UserAssetsClientPage({
                 // Update inventory state
                 setInventory(prev => ({
                     ...prev,
-                    pcs: transformedAssets.filter(asset => asset.type === 'pc'),
-                    monitors: transformedAssets.filter(asset => asset.type === 'monitor'),
-                    smartphones: transformedAssets.filter(asset => asset.type === 'phone'),
-                    others: transformedAssets.filter(asset => !['pc', 'monitor', 'phone'].includes(asset.type)),
+                    pcs: transformedAssets.filter((asset: any) => asset.type === 'pc'),
+                    monitors: transformedAssets.filter((asset: any) => asset.type === 'monitor'),
+                    smartphones: transformedAssets.filter((asset: any) => asset.type === 'phone'),
+                    others: transformedAssets.filter((asset: any) => !['pc', 'monitor', 'phone'].includes(asset.type)),
                 }));
             }
         } catch (error) {
@@ -444,25 +701,56 @@ export default function UserAssetsClientPage({
         } else {
             setDisplayedEmployees(filteredEmployees);
         }
-        // Reset pagination when search is performed
+        // Reset pagination when search is performed 
         setPaginationState({});
         setEmployeeListPagination({ currentPage: 1, itemsPerPage: 5 });
     }
 
     useEffect(() => {
-        setDisplayedEmployees(filteredEmployees);
+        // Only update displayedEmployees if no specific employees are selected
+        if (selectedEmployees.length === 0) {
+            setDisplayedEmployees(filteredEmployees);
+        }
         // Reset pagination when filters change
         setPaginationState({});
         setEmployeeListPagination({ currentPage: 1, itemsPerPage: 5 });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [locationFilter, projectFilter, statusFilter]);
+    }, [locationFilter, projectFilter, statusFilter, selectedEmployees.length]);
 
-    // Auto-populate displayed employees when filtered employees change (including initial load)
+
+    // Fetch locations and projects when authenticated
     useEffect(() => {
-        if (filteredEmployees.length > 0 && displayedEmployees.length === 0) {
-            setDisplayedEmployees(filteredEmployees);
+        async function fetchData() {
+            if (!authLoading && user) {
+                setIsLoading(true);
+                try {
+                    const [locationsResult, projectsResult] = await Promise.all([
+                        getLocationsFromGraphQL(),
+                        getProjectsFromGraphQL()
+                    ]);
+
+                    if (locationsResult.error) {
+                        console.error('Failed to fetch locations:', locationsResult.error);
+                    } else {
+                        const locationNames = ['All', ...locationsResult.locations.map(l => l.name)];
+                        setMasterData(prev => ({ ...prev, locations: locationNames }));
+                    }
+
+                    if (projectsResult.error) {
+                        console.error('Failed to fetch projects:', projectsResult.error);
+                    } else {
+                        const projectNames = ['All', ...projectsResult.projects.map(p => p.name)];
+                        setMasterData(prev => ({ ...prev, projects: projectNames }));
+                    }
+                } catch (error) {
+                    console.error('Error fetching data:', error);
+                } finally {
+                    setIsLoading(false);
+                }
+            }
         }
-    }, [filteredEmployees, displayedEmployees.length]);
+        fetchData();
+    }, [authLoading, user]);
 
     useEffect(() => {
         // Load assets when component mounts if we don't have any
@@ -470,6 +758,15 @@ export default function UserAssetsClientPage({
             loadAssets();
         }
     }, []); // Only run once on mount
+
+    // Handle initial display when assets are loaded
+    useEffect(() => {
+        // Only update if no specific employees are selected and we have assets
+        if (selectedEmployees.length === 0 && allAssets.length > 0 && displayedEmployees.length === 0) {
+            setDisplayedEmployees(filteredEmployees);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [allAssets.length, selectedEmployees.length, displayedEmployees.length]);
 
     useEffect(() => {
         // Load available assets when asset selector dialog opens
@@ -757,8 +1054,8 @@ export default function UserAssetsClientPage({
             setIsLoadingAvailableAssets(true);
             const result = await getAvailableAssets({ perPage: 5000 }); // Load all available assets
 
-            if (result.assets) {
-                const transformedAssets = result.assets.map(asset => ({
+            if (result.data) {
+                const transformedAssets = result.data.map((asset: any) => ({
                     id: asset.asset_id,
                     asset_id: asset.asset_id,
                     type: asset.type,
@@ -784,10 +1081,10 @@ export default function UserAssetsClientPage({
                     cpu: asset.cpu || '',
                     memory: asset.memory || '',
                     location: asset.location || '',
-                    status: asset.status || '',
+                    status: asset.status as any || '',
                     previousUser: asset.previous_user || '',
-                    userId: asset.user_id || '', // Employee name for display
-                    employeeId: asset.user_id || '', // Employee ID for internal operations
+                    userId: asset.employee?.name || asset.user_id || '', // Employee name for display
+                    employeeId: asset.employee?.id || asset.user_id || '', // Employee ID for internal operations
                     usageStartDate: asset.usage_start_date || '',
                     usageEndDate: asset.usage_end_date || '',
                     carryInOutAgreement: asset.carry_in_out_agreement || '',
@@ -1715,7 +2012,29 @@ export default function UserAssetsClientPage({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+            </>
+        );
+    
 
+    return (
+        <>
+            {authLoading ? (
+                <div className="flex h-screen w-screen items-center justify-center">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+                        <p>Loading...</p>
+                    </div>
+                </div>
+            ) : !user ? (
+                <div className="flex h-screen w-screen items-center justify-center">
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+                        <p>Redirecting to login...</p>
+                    </div>
+                </div>
+            ) : (
+                renderMainContent()
+            )}
         </>
-    )
+    );
 }

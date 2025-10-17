@@ -47,7 +47,9 @@ import { Input } from "@/components/ui/input"
 import { PlusCircle, Trash2, AlertTriangle, GripVertical, Save } from "lucide-react"
 import { useI18n } from "@/hooks/use-i18n"
 import { useToast } from "@/hooks/use-toast"
-import { saveProject, deleteProject, updateProjectOrder, bulkUpdateProjectVisibility, bulkUpdateProjectChanges, type Project } from "./actions"
+import { useAuth } from "@/context/auth-context"
+import { getProjectsFromGraphQL, saveProjectClient, deleteProjectClient, saveProjectsChangesClient } from "../../inventory/graphql-actions"
+import { type Project } from "./actions"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
@@ -72,7 +74,7 @@ function useProjectSchema() {
   });
 }
 
-function SortableProjectRow({ project, onEdit, onVisibilityToggle, isPending }: { project: Project, onEdit: (p: Project) => void, onVisibilityToggle: (p: Project) => void, isPending: boolean }) {
+function SortableProjectRow({ project, onEdit, onVisibilityToggle, isPending, hasPendingChanges }: { project: Project, onEdit: (p: Project) => void, onVisibilityToggle: (p: Project) => void, isPending: boolean, hasPendingChanges: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: project.id });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -88,7 +90,12 @@ function SortableProjectRow({ project, onEdit, onVisibilityToggle, isPending }: 
       className="cursor-pointer hover:bg-muted/50"
     >
       <TableCell className="py-2 px-2 w-10">
-        <button {...attributes} {...listeners} className="p-2 cursor-grab active:cursor-grabbing">
+        <button 
+          {...attributes} 
+          {...listeners} 
+          className="p-2 cursor-grab active:cursor-grabbing"
+          onClick={(e) => e.stopPropagation()}
+        >
           <GripVertical className="h-5 w-5 text-muted-foreground" />
         </button>
       </TableCell>
@@ -107,24 +114,73 @@ function SortableProjectRow({ project, onEdit, onVisibilityToggle, isPending }: 
 }
 
 export default function ProjectsClientPage({ initialProjects, initialError }: ProjectsClientPageProps) {
+  const { user, loading: authLoading } = useAuth();
   const [projects, setProjects] = useState<Project[]>(initialProjects || []);
+  const [initialProjectsState, setInitialProjectsState] = useState<Project[]>(initialProjects || []);
   const [error, setError] = useState<string | null>(initialError);
+  const [isLoading, setIsLoading] = useState(true);
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [hasVisibilityChanges, setHasVisibilityChanges] = useState(false)
+  const [hasPendingChanges, setHasPendingChanges] = useState(false)
+  const [isDuplicateNameDialogOpen, setIsDuplicateNameDialogOpen] = useState(false)
   const { t } = useI18n()
   const { toast } = useToast()
   const router = useRouter();
 
   const projectSchema = useProjectSchema();
 
+  // Fetch data when authenticated
   useEffect(() => {
-    setProjects(initialProjects || []);
-    setError(initialError);
-    setHasVisibilityChanges(false);
-  }, [initialProjects, initialError]);
+    async function fetchData() {
+      if (!authLoading && user) {
+        setIsLoading(true);
+        try {
+          const projectsResult = await getProjectsFromGraphQL();
+
+          if (projectsResult.error) {
+            setError('Failed to fetch projects');
+          } else {
+            // Sort projects by order to ensure correct display order
+            const sortedProjects = [...projectsResult.projects].sort((a, b) => a.order - b.order);
+            setProjects(sortedProjects);
+            setInitialProjectsState(sortedProjects); // Store initial state
+          }
+        } catch (error) {
+          setError('Failed to fetch data');
+        } finally {
+          setIsLoading(false);
+        }
+      }
+    }
+    fetchData();
+  }, [authLoading, user]);
+
+  // Show loading state while authentication is in progress
+  if (authLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Redirect to login if not authenticated
+  if (!user) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+          <p>Redirecting to login...</p>
+        </div>
+      </div>
+    );
+  }
 
 
   const form = useForm<ProjectFormValues>({
@@ -152,13 +208,36 @@ export default function ProjectsClientPage({ initialProjects, initialError }: Pr
     if (!editingProject) return;
 
     startTransition(async () => {
-      const result = await deleteProject(editingProject.id)
+      const result = await deleteProjectClient(editingProject.id)
       if (result.success) {
         toast({
           title: t('actions.success'),
           description: t(result.message)
         })
-        router.refresh();
+        
+        // Refresh the projects data from GraphQL
+        try {
+          const projectsResult = await getProjectsFromGraphQL();
+          if (projectsResult.error) {
+            toast({
+              title: t('actions.error'),
+              description: 'Failed to refresh project data',
+              variant: "destructive"
+            });
+          } else {
+            // Sort projects by order to ensure correct display order
+            const sortedProjects = [...projectsResult.projects].sort((a, b) => a.order - b.order);
+            setProjects(sortedProjects);
+            setInitialProjectsState(sortedProjects); // Update initial state
+          }
+        } catch (error) {
+          console.error('Error refreshing projects:', error);
+          toast({
+            title: t('actions.error'),
+            description: 'Failed to refresh project data',
+            variant: "destructive"
+          });
+        }
       } else {
         toast({
           title: t('actions.error'),
@@ -173,7 +252,7 @@ export default function ProjectsClientPage({ initialProjects, initialError }: Pr
 
   function onSubmit(values: ProjectFormValues) {
     startTransition(async () => {
-      const result = await saveProject(editingProject ? editingProject.id : null, values)
+      const result = await saveProjectClient(editingProject ? editingProject.id : null, values)
       if (result.success) {
         toast({
           title: t('actions.success'),
@@ -181,95 +260,51 @@ export default function ProjectsClientPage({ initialProjects, initialError }: Pr
         })
         setIsFormDialogOpen(false)
         setEditingProject(null)
-        router.refresh();
+        
+        // Refresh the projects data from GraphQL
+        try {
+          const projectsResult = await getProjectsFromGraphQL();
+          if (projectsResult.error) {
+            toast({
+              title: t('actions.error'),
+              description: 'Failed to refresh project data',
+              variant: "destructive"
+            });
+          } else {
+            // Sort projects by order to ensure correct display order
+            const sortedProjects = [...projectsResult.projects].sort((a, b) => a.order - b.order);
+            setProjects(sortedProjects);
+            setInitialProjectsState(sortedProjects); // Update initial state
+          }
+        } catch (error) {
+          console.error('Error refreshing projects:', error);
+          toast({
+            title: t('actions.error'),
+            description: 'Failed to refresh project data',
+            variant: "destructive"
+          });
+        }
       } else {
-        toast({
-          title: t('actions.error'),
-          description: t(result.message),
-          variant: "destructive"
-        });
+        // Handle duplicate name error specifically
+        if (result.errorType === 'duplicate_name') {
+          setIsDuplicateNameDialogOpen(true)
+        } else {
+          toast({ variant: "destructive", title: t('actions.error'), description: t(result.message) })
+        }
       }
     })
   }
 
   const handleVisibilityToggle = (project: Project) => {
-    // Update local state without saving to database
-    setProjects(prevProjects =>
-      prevProjects.map(p =>
-        p.id === project.id
-          ? { ...p, visible: !p.visible }
-          : p
-      )
-    );
-    setHasVisibilityChanges(true);
-  };
+    const newVisible = !project.visible;
 
-  const handleDiscardChanges = () => {
-    setProjects([...initialProjects]);
-    setHasVisibilityChanges(false);
-  };
+    // Update local state immediately for responsive UI
+    setProjects(prev => prev.map(proj =>
+      proj.id === project.id ? { ...proj, visible: newVisible } : proj
+    ));
 
-  const handleSaveVisibilityChanges = () => {
-    if (!hasVisibilityChanges) return;
-
-    startTransition(async () => {
-      // Get all projects that have different visibility or order from initial state
-      const updates = projects
-        .filter(project => {
-          const initialProject = initialProjects.find(p => p.id === project.id);
-          if (!initialProject) return false;
-
-          // Check for visibility changes
-          const visibilityChanged = initialProject.visible !== project.visible;
-          // Check for order changes
-          const orderChanged = initialProject.order !== project.order;
-
-          return visibilityChanged || orderChanged;
-        })
-        .map(project => {
-          const initialProject = initialProjects.find(p => p.id === project.id)!;
-          const updates: Partial<Project> = {};
-
-          // Add visibility update if changed
-          if (initialProject.visible !== project.visible) {
-            updates.visible = project.visible ?? true;
-          }
-
-          // Add order update if changed
-          if (initialProject.order !== project.order) {
-            updates.order = project.order;
-          }
-
-          return {
-            id: project.id,
-            visible: project.visible ?? true,
-            name: project.name,
-            description: project.description,
-            order: project.order
-          };
-        });
-
-      if (updates.length === 0) {
-        setHasVisibilityChanges(false);
-        return;
-      }
-
-      const result = await bulkUpdateProjectChanges(updates);
-      if (result.success) {
-        toast({
-          title: t('actions.success'),
-          description: t(result.message)
-        });
-        setHasVisibilityChanges(false);
-        router.refresh();
-      } else {
-        toast({
-          title: t('actions.error'),
-          description: t(result.message),
-          variant: "destructive"
-        });
-      }
-    });
+    // Track the change for batch saving
+    setHasPendingChanges(true);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -285,10 +320,120 @@ export default function ProjectsClientPage({ initialProjects, initialError }: Pr
         order: index
       }));
 
+      // Update local state immediately for responsive UI
       setProjects(updatedProjects);
-      setHasVisibilityChanges(true); // Track changes for batch saving
+
+      // Track changes for batch saving
+      setHasPendingChanges(true);
     }
   };
+
+  const handleDiscardChanges = () => {
+    setHasPendingChanges(false);
+    // Reset projects to their original state
+    setProjects(initialProjectsState);
+  };
+
+  const handleBatchSave = () => {
+    if (!hasPendingChanges) return;
+
+    startTransition(async () => {
+      try {
+        // Get all projects that have different visibility or order from initial state
+        const updates = projects
+          .filter(project => {
+            const initialProject = initialProjectsState.find(p => p.id === project.id);
+            if (!initialProject) return false;
+
+            // Check for visibility changes
+            const visibilityChanged = initialProject.visible !== project.visible;
+            // Check for order changes
+            const orderChanged = initialProject.order !== project.order;
+
+            return visibilityChanged || orderChanged;
+          })
+          .map(project => {
+            const initialProject = initialProjectsState.find(p => p.id === project.id)!;
+            const updates: Partial<Project> = {};
+
+            // Add visibility update if changed
+            if (initialProject.visible !== project.visible) {
+              updates.visible = project.visible ?? true;
+            }
+
+            // Add order update if changed
+            if (initialProject.order !== project.order) {
+              updates.order = project.order;
+            }
+
+            return {
+              id: project.id,
+              updates: {
+                visible: project.visible ?? true,
+                name: project.name,
+                description: project.description,
+                order: project.order
+              },
+              currentProject: {
+                name: project.name
+              }
+            };
+          });
+
+        if (updates.length === 0) {
+          setHasPendingChanges(false);
+          return;
+        }
+
+        const result = await saveProjectsChangesClient(updates);
+        if (result.success) {
+          toast({
+            title: t('actions.success'),
+            description: t(result.message)
+          });
+          setHasPendingChanges(false);
+          
+          // Refresh the projects data from GraphQL
+          try {
+            const projectsResult = await getProjectsFromGraphQL();
+            if (projectsResult.error) {
+              toast({
+                title: t('actions.error'),
+                description: 'Failed to refresh project data',
+                variant: "destructive"
+              });
+            } else {
+              // Sort projects by order to ensure correct display order
+              const sortedProjects = [...projectsResult.projects].sort((a, b) => a.order - b.order);
+              setProjects(sortedProjects);
+              setInitialProjectsState(sortedProjects); // Update initial state
+            }
+          } catch (error) {
+            console.error('Error refreshing projects:', error);
+            toast({
+              title: t('actions.error'),
+              description: 'Failed to refresh project data',
+              variant: "destructive"
+            });
+          }
+        } else {
+          toast({
+            title: t('actions.error'),
+            description: t(result.message),
+            variant: "destructive"
+          });
+        }
+      } catch (error) {
+        console.error('Unexpected error during batch save:', error);
+        toast({
+          title: t('actions.error'),
+          description: t('errors.settings.save_failed'),
+          variant: "destructive"
+        });
+      }
+    });
+  };
+
 
 
   const renderContent = () => {
@@ -318,15 +463,39 @@ export default function ProjectsClientPage({ initialProjects, initialError }: Pr
               </TableHeader>
               <SortableContext items={projects} strategy={verticalListSortingStrategy}>
                 <TableBody>
-                  {projects.map((project) => (
-                    <SortableProjectRow
-                      key={project.id}
-                      project={project}
-                      onEdit={handleEdit}
-                      onVisibilityToggle={handleVisibilityToggle}
-                      isPending={isPending}
-                    />
-                  ))}
+                  {isLoading ? (
+                    // Loading skeleton
+                    Array.from({ length: 5 }).map((_, index) => (
+                      <TableRow key={`loading-${index}`}>
+                        <TableCell className="py-2 px-2 w-10">
+                          <div className="h-4 bg-muted animate-pulse rounded w-4"></div>
+                        </TableCell>
+                        <TableCell className="py-2 px-2">
+                          <div className="h-4 bg-muted animate-pulse rounded w-32"></div>
+                        </TableCell>
+                        <TableCell className="py-2 px-2 text-right w-24">
+                          <div className="h-4 bg-muted animate-pulse rounded w-8 ml-auto"></div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : projects.length > 0 ? (
+                    projects.map((project) => (
+                      <SortableProjectRow
+                        key={project.id}
+                        project={project}
+                        onEdit={handleEdit}
+                        onVisibilityToggle={handleVisibilityToggle}
+                        isPending={isPending}
+                        hasPendingChanges={hasPendingChanges}
+                      />
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                        No projects found
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </SortableContext>
             </Table>
@@ -346,10 +515,10 @@ export default function ProjectsClientPage({ initialProjects, initialError }: Pr
               <CardDescription>{t('pages.settings.projects.description')}</CardDescription>
             </div>
             <div className="flex gap-2">
-              {hasVisibilityChanges && (
+              {hasPendingChanges && (
                 <>
                   <Button
-                    onClick={handleSaveVisibilityChanges}
+                    onClick={handleBatchSave}
                     disabled={isPending}
                     variant="default"
                     className="bg-green-600 hover:bg-green-700"

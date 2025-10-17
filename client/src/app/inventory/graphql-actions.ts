@@ -362,7 +362,7 @@ export async function getAllAssetsFromGraphQL(page: number = 1, first: number = 
   }
 }
 
-export async function getEmployeesFromGraphQL(): Promise<{ employees: { id: string; name: string; }[]; error: string | null }> {
+export async function getEmployeesFromGraphQL(): Promise<{ employees: { id: string; employee_id: string; name: string; email: string; department?: string; location: string; projects: string[]; createdAt: string; updatedAt: string; }[]; error: string | null }> {
   try {
     const response = await graphqlQuery(INVENTORY_QUERIES.GET_EMPLOYEES);
     
@@ -377,7 +377,14 @@ export async function getEmployeesFromGraphQL(): Promise<{ employees: { id: stri
 
     const employees = response.data.employees.data.map((emp: any) => ({
       id: emp.id,
-      name: emp.name
+      employee_id: emp.employee_id || emp.id,
+      name: emp.name,
+      email: emp.email || '',
+      department: emp.department,
+      location: emp.location || '',
+      projects: emp.projects || [],
+      createdAt: emp.created_at || new Date().toISOString(),
+      updatedAt: emp.updated_at || new Date().toISOString()
     }));
     return { employees, error: null };
   } catch (error: any) {
@@ -386,13 +393,15 @@ export async function getEmployeesFromGraphQL(): Promise<{ employees: { id: stri
   }
 }
 
-export async function getLocationsFromGraphQL(): Promise<{ locations: { id: string; name: string; }[]; error: string | null }> {
+export async function getLocationsFromGraphQL(): Promise<{ locations: { id: string; name: string; order: number; visible?: boolean; }[]; error: string | null }> {
   try {
     const response = await graphqlQuery(`
       query GetLocations {
         locations {
           id
           name
+          order
+          visible
         }
       }
     `);
@@ -401,22 +410,54 @@ export async function getLocationsFromGraphQL(): Promise<{ locations: { id: stri
       return { locations: [], error: response.errors[0]?.message || 'GraphQL query failed' };
     }
 
-    return { locations: response.data?.locations || [], error: null };
+    const locations = (response.data?.locations || []).map((loc: any) => ({
+      id: loc.id,
+      name: loc.name,
+      order: loc.order || 0,
+      visible: loc.visible
+    }));
+
+    // Sort locations by order field
+    locations.sort((a: any, b: any) => a.order - b.order);
+
+    return { locations, error: null };
   } catch (error: any) {
     return { locations: [], error: error.message || 'Failed to fetch locations' };
   }
 }
 
-export async function getProjectsFromGraphQL(): Promise<{ projects: { id: string; name: string; }[]; error: string | null }> {
+export async function getProjectsFromGraphQL(): Promise<{ projects: { id: string; name: string; description?: string; order: number; visible?: boolean; }[]; error: string | null }> {
   try {
-    // Get projects directly from the projects table
-    const response = await graphqlQuery(INVENTORY_QUERIES.GET_PROJECTS);
+    const response = await graphqlQuery(`
+      query GetProjects {
+        projects {
+          data {
+            id
+            name
+            description
+            order
+            visible
+          }
+        }
+      }
+    `);
     
     if (response.errors) {
       return { projects: [], error: response.errors[0]?.message || 'GraphQL query failed' };
     }
 
-    return { projects: response.data?.projects?.data || [], error: null };
+    const projects = (response.data?.projects?.data || []).map((proj: any) => ({
+      id: proj.id,
+      name: proj.name,
+      description: proj.description || '',
+      order: proj.order || 0,
+      visible: proj.visible !== false
+    }));
+
+    // Sort projects by order field
+    projects.sort((a: any, b: any) => a.order - b.order);
+
+    return { projects, error: null };
   } catch (error: any) {
     return { projects: [], error: error.message || 'Failed to fetch projects' };
   }
@@ -997,6 +1038,611 @@ export async function bulkUpsertMixedAssetsToGraphQL(assets: any[]): Promise<{
           others: []
         }
       }
+    };
+  }
+}
+
+// Client-side employee management functions
+export async function saveEmployeeClient(id: string | null, values: { employeeId: string; name: string; email: string; department?: string; location?: string; projects?: string[]; }): Promise<{ success: boolean; message: string; errorType?: string }> {
+  try {
+    let employeeIdToSave: string;
+
+    // If id is provided, we're editing. The document ID is the employeeId.
+    if (id) {
+      employeeIdToSave = id;
+    } else {
+      // For new employees, use a temporary ID that will be replaced by Google Workspace User ID
+      // Use a prefix to identify temporary IDs
+      employeeIdToSave = `TEMP_${Date.now()}`;
+    }
+
+    const employeeInput = {
+      employee_id: employeeIdToSave,
+      name: values.name,
+      email: values.email || undefined,
+      location: values.location || undefined,
+      projects: values.projects || [],
+    };
+
+    let response;
+    if (id) {
+      // Update existing employee
+      response = await graphqlQuery(`
+        mutation UpdateEmployee($id: ID!, $employee: EmployeeInput!) {
+          updateEmployee(id: $id, employee: $employee) {
+            id
+            employee_id
+            name
+            email
+            location
+            projects
+          }
+        }
+      `, {
+        id: id,
+        employee: employeeInput
+      });
+    } else {
+      // Create new employee
+      response = await graphqlQuery(`
+        mutation CreateEmployee($employee: EmployeeInput!) {
+          createEmployee(employee: $employee) {
+            id
+            employee_id
+            name
+            email
+            location
+            projects
+          }
+        }
+      `, {
+        employee: employeeInput
+      });
+    }
+
+    if (response.errors) {
+      const errorMessage = response.errors[0]?.message || 'GraphQL mutation failed';
+      
+      // Handle specific duplicate email error
+      if (errorMessage.includes('email already exists')) {
+        return {
+          success: false,
+          message: 'An employee with this email already exists',
+          errorType: 'duplicate_email'
+        };
+      }
+      
+      return {
+        success: false,
+        message: errorMessage,
+        errorType: 'graphql_error'
+      };
+    }
+
+    return {
+      success: true,
+      message: id ? 'Employee updated successfully' : 'Employee created successfully'
+    };
+  } catch (error: any) {
+    console.error('Error saving employee:', error);
+    return {
+      success: false,
+      message: error.message || 'Failed to save employee',
+      errorType: 'network_error'
+    };
+  }
+}
+
+export async function deleteEmployeeClient(id: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const response = await graphqlQuery(`
+      mutation DeleteEmployee($id: ID!) {
+        deleteEmployee(id: $id)
+      }
+    `, {
+      id: id
+    });
+
+    if (response.errors) {
+      const errorMessage = response.errors[0]?.message || 'GraphQL mutation failed';
+      return {
+        success: false,
+        message: errorMessage
+      };
+    }
+
+    return {
+      success: true,
+      message: 'Employee deleted successfully'
+    };
+  } catch (error: any) {
+    console.error('Error deleting employee:', error);
+    return {
+      success: false,
+      message: error.message || 'Failed to delete employee'
+    };
+  }
+}
+
+// Client-side location management functions
+export async function saveLocationClient(id: string | null, values: { name: string; visible?: boolean; order?: number }): Promise<{ success: boolean; message: string; errorType?: string }> {
+  try {
+    const locationInput = {
+      name: values.name,
+      visible: values.visible !== false,
+      order: values.order || 0
+    };
+
+    let response;
+    if (id) {
+      response = await graphqlQuery(`
+        mutation UpdateLocation($id: ID!, $location: LocationInput!) {
+          updateLocation(id: $id, location: $location) {
+            id
+            name
+            visible
+            order
+          }
+        }
+      `, {
+        id: id,
+        location: locationInput
+      });
+    } else {
+      response = await graphqlQuery(`
+        mutation CreateLocation($location: LocationInput!) {
+          createLocation(location: $location) {
+            id
+            name
+            visible
+            order
+          }
+        }
+      `, {
+        location: locationInput
+      });
+    }
+
+    if (response.errors) {
+      const errorMessage = response.errors[0]?.message || 'GraphQL mutation failed';
+      
+      if (errorMessage.includes('name already exists')) {
+        return {
+          success: false,
+          message: 'A location with this name already exists',
+          errorType: 'duplicate_name'
+        };
+      }
+      
+      return {
+        success: false,
+        message: errorMessage,
+        errorType: 'graphql_error'
+      };
+    }
+
+    return {
+      success: true,
+      message: id ? 'Location updated successfully' : 'Location created successfully'
+    };
+  } catch (error: any) {
+    console.error('Error saving location:', error);
+    return {
+      success: false,
+      message: error.message || 'Failed to save location',
+      errorType: 'network_error'
+    };
+  }
+}
+
+export async function deleteLocationClient(id: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const response = await graphqlQuery(`
+      mutation DeleteLocation($id: ID!) {
+        deleteLocation(id: $id)
+      }
+    `, {
+      id: id
+    });
+
+    if (response.errors) {
+      const errorMessage = response.errors[0]?.message || 'GraphQL mutation failed';
+      return {
+        success: false,
+        message: errorMessage
+      };
+    }
+
+    return {
+      success: true,
+      message: 'Location deleted successfully'
+    };
+  } catch (error: any) {
+    console.error('Error deleting location:', error);
+    return {
+      success: false,
+      message: error.message || 'Failed to delete location'
+    };
+  }
+}
+
+// Client-side bulk location save function
+export async function saveLocationsChangesClient(changes: Array<{ id: string; updates: { visible?: boolean; order?: number; name?: string }; currentLocation?: { name: string } }>): Promise<{ success: boolean; message: string }> {
+  try {
+    if (changes.length === 0) {
+      return {
+        success: true,
+        message: 'No changes to save'
+      };
+    }
+
+    // Process each change individually using GraphQL mutations
+    const results = await Promise.all(
+      changes.map(async (change) => {
+        // Build the location input - always include name to satisfy GraphQL schema
+        const locationInput: any = {
+          name: change.updates.name || change.currentLocation?.name || 'Location' // Use current name or fallback
+        };
+        
+        // Add other fields that are being updated
+        if (change.updates.visible !== undefined) {
+          locationInput.visible = change.updates.visible;
+        }
+        if (change.updates.order !== undefined) {
+          locationInput.order = change.updates.order;
+        }
+        
+        const mutationData = {
+          id: change.id,
+          location: locationInput
+        };
+        
+        const response = await graphqlQuery(`
+          mutation UpdateLocation($id: ID!, $location: LocationInput!) {
+            updateLocation(id: $id, location: $location) {
+              id
+              name
+              visible
+              order
+            }
+          }
+        `, mutationData);
+
+        if (response.errors) {
+          throw new Error(response.errors[0]?.message || 'Failed to update location');
+        }
+
+        return response.data?.updateLocation;
+      })
+    );
+
+    return {
+      success: true,
+      message: `Successfully updated ${results.length} location(s)`
+    };
+  } catch (error: any) {
+    console.error('Error saving location changes:', error);
+    return {
+      success: false,
+      message: error.message || 'Failed to save location changes'
+    };
+  }
+}
+
+// Client-side project management functions
+export async function saveProjectClient(id: string | null, values: { name: string; description?: string; visible?: boolean; order?: number }): Promise<{ success: boolean; message: string; errorType?: string }> {
+  try {
+    const projectInput = {
+      name: values.name,
+      description: values.description || undefined,
+      visible: values.visible !== false,
+      order: values.order || 0
+    };
+
+    let response;
+    if (id) {
+      response = await graphqlQuery(`
+        mutation UpdateProject($id: ID!, $project: ProjectInput!) {
+          updateProject(id: $id, project: $project) {
+            id
+            name
+            description
+            visible
+            order
+          }
+        }
+      `, {
+        id: id,
+        project: projectInput
+      });
+    } else {
+      response = await graphqlQuery(`
+        mutation CreateProject($project: ProjectInput!) {
+          createProject(project: $project) {
+            id
+            name
+            description
+            visible
+            order
+          }
+        }
+      `, {
+        project: projectInput
+      });
+    }
+
+    if (response.errors) {
+      const errorMessage = response.errors[0]?.message || 'GraphQL mutation failed';
+      
+      if (errorMessage.includes('name already exists')) {
+        return {
+          success: false,
+          message: 'A project with this name already exists',
+          errorType: 'duplicate_name'
+        };
+      }
+      
+      return {
+        success: false,
+        message: errorMessage,
+        errorType: 'graphql_error'
+      };
+    }
+
+    return {
+      success: true,
+      message: id ? 'Project updated successfully' : 'Project created successfully'
+    };
+  } catch (error: any) {
+    console.error('Error saving project:', error);
+    return {
+      success: false,
+      message: error.message || 'Failed to save project',
+      errorType: 'network_error'
+    };
+  }
+}
+
+export async function deleteProjectClient(id: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const response = await graphqlQuery(`
+      mutation DeleteProject($id: ID!) {
+        deleteProject(id: $id)
+      }
+    `, {
+      id: id
+    });
+
+    if (response.errors) {
+      const errorMessage = response.errors[0]?.message || 'GraphQL mutation failed';
+      return {
+        success: false,
+        message: errorMessage
+      };
+    }
+
+    return {
+      success: true,
+      message: 'Project deleted successfully'
+    };
+  } catch (error: any) {
+    console.error('Error deleting project:', error);
+    return {
+      success: false,
+      message: error.message || 'Failed to delete project'
+    };
+  }
+}
+
+// Client-side user management functions
+export async function getUsersFromGraphQL(): Promise<{ users: { id: string; name: string; email: string; email_verified_at: string | null; created_at: string; updated_at: string; }[]; error: string | null }> {
+  try {
+    const response = await graphqlQuery(`
+      query GetUsers {
+        users {
+          data {
+            id
+            name
+            email
+            email_verified_at
+            created_at
+            updated_at
+          }
+        }
+      }
+    `);
+    
+    if (response.errors) {
+      return { users: [], error: response.errors[0]?.message || 'GraphQL query failed' };
+    }
+
+    const users = (response.data?.users?.data || []).map((user: any) => ({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      email_verified_at: user.email_verified_at,
+      created_at: user.created_at,
+      updated_at: user.updated_at
+    }));
+
+    return { users, error: null };
+  } catch (error: any) {
+    return { users: [], error: error.message || 'Failed to fetch users' };
+  }
+}
+
+export async function saveUserClient(id: string | null, values: { name: string; email: string; password?: string }): Promise<{ success: boolean; message: string; errorType?: string }> {
+  try {
+    const userInput = {
+      name: values.name,
+      email: values.email,
+      password: values.password || undefined
+    };
+
+    let response;
+    if (id) {
+      response = await graphqlQuery(`
+        mutation UpdateUser($id: ID!, $user: UserInput!) {
+          updateUser(id: $id, user: $user) {
+            id
+            name
+            email
+          }
+        }
+      `, {
+        id: id,
+        user: userInput
+      });
+    } else {
+      response = await graphqlQuery(`
+        mutation CreateUser($user: UserInput!) {
+          createUser(user: $user) {
+            id
+            name
+            email
+          }
+        }
+      `, {
+        user: userInput
+      });
+    }
+
+    if (response.errors) {
+      const errorMessage = response.errors[0]?.message || 'GraphQL mutation failed';
+      
+      if (errorMessage.includes('email already exists')) {
+        return {
+          success: false,
+          message: 'A user with this email already exists',
+          errorType: 'duplicate_email'
+        };
+      }
+      
+      return {
+        success: false,
+        message: errorMessage,
+        errorType: 'graphql_error'
+      };
+    }
+
+    return {
+      success: true,
+      message: id ? 'User updated successfully' : 'User created successfully'
+    };
+  } catch (error: any) {
+    console.error('Error saving user:', error);
+    return {
+      success: false,
+      message: error.message || 'Failed to save user',
+      errorType: 'network_error'
+    };
+  }
+}
+
+export async function deleteUserClient(id: string): Promise<{ success: boolean; message: string }> {
+  try {
+    const response = await graphqlQuery(`
+      mutation DeleteUser($id: ID!) {
+        deleteUser(id: $id)
+      }
+    `, {
+      id: id
+    });
+
+    if (response.errors) {
+      const errorMessage = response.errors[0]?.message || 'GraphQL mutation failed';
+      return {
+        success: false,
+        message: errorMessage
+      };
+    }
+
+    return {
+      success: true,
+      message: 'User deleted successfully'
+    };
+  } catch (error: any) {
+    console.error('Error deleting user:', error);
+    return {
+      success: false,
+      message: error.message || 'Failed to delete user'
+    };
+  }
+}
+
+// Client-side bulk project save function
+export async function saveProjectsChangesClient(changes: Array<{ id: string; updates: { visible?: boolean; order?: number; name?: string; description?: string }; currentProject?: { name: string } }>): Promise<{ success: boolean; message: string }> {
+  try {
+    console.log('🔧 saveProjectsChangesClient called with changes:', changes);
+    
+    if (changes.length === 0) {
+      return {
+        success: true,
+        message: 'No changes to save'
+      };
+    }
+
+    // Process each change individually using GraphQL mutations
+    const results = await Promise.all(
+      changes.map(async (change, index) => {
+        console.log(`🔧 Processing project change ${index + 1}/${changes.length}:`, change);
+        
+        // Build the project input - always include name to satisfy GraphQL schema
+        const projectInput: any = {
+          name: change.updates.name || change.currentProject?.name || 'Project' // Use current name or fallback
+        };
+        
+        // Add other fields that are being updated
+        if (change.updates.visible !== undefined) {
+          projectInput.visible = change.updates.visible;
+        }
+        if (change.updates.order !== undefined) {
+          projectInput.order = change.updates.order;
+        }
+        if (change.updates.description !== undefined) {
+          projectInput.description = change.updates.description;
+        }
+        
+        const mutationData = {
+          id: change.id,
+          project: projectInput
+        };
+        
+        console.log(`🔧 Sending GraphQL mutation data for project change ${index + 1}:`, JSON.stringify(mutationData, null, 2));
+        
+        const response = await graphqlQuery(`
+          mutation UpdateProject($id: ID!, $project: ProjectInput!) {
+            updateProject(id: $id, project: $project) {
+              id
+              name
+              description
+              visible
+              order
+            }
+          }
+        `, mutationData);
+
+        console.log(`🔧 GraphQL response for project change ${index + 1}:`, response);
+
+        if (response.errors) {
+          console.error(`❌ GraphQL errors for project change ${index + 1}:`, JSON.stringify(response.errors, null, 2));
+          throw new Error(response.errors[0]?.message || 'Failed to update project');
+        }
+
+        return response.data?.updateProject;
+      })
+    );
+
+    console.log('✅ All project changes processed successfully:', results);
+    return {
+      success: true,
+      message: `Successfully updated ${results.length} project(s)`
+    };
+  } catch (error: any) {
+    console.error('❌ Error saving project changes:', error);
+    return {
+      success: false,
+      message: error.message || 'Failed to save project changes'
     };
   }
 }

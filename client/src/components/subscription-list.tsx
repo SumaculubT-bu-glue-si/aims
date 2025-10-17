@@ -1,7 +1,7 @@
 
 'use client';
 
-import type { Subscription, Employee, SubscriptionStatus, LicenseType } from '@/lib/types';
+import type { Subscription, Employee, SubscriptionStatus, LicenseType } from '@/lib/types/index';
 import { useRouter, usePathname } from 'next/navigation';
 import {
     Table,

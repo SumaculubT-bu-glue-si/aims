@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import SubscriptionForm from "@/components/subscription-form";
 import SubscriptionList from "@/components/subscription-list";
 import { PlusCircle } from "lucide-react";
-import { Employee, Subscription } from "@/lib/types";
+import { Employee, Subscription } from "@/lib/types/index";
 import { employees as initialEmployees, subscriptions as initialSubscriptions } from '@/lib/mock-data';
 import { toast } from "@/hooks/use-toast";
 

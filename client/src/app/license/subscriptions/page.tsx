@@ -5,7 +5,7 @@ import SubscriptionForm from "@/components/subscription-form";
 import SubscriptionList from "@/components/subscription-list";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Employee, Subscription } from "@/lib/types";
+import { Employee, Subscription } from "@/lib/types/index";
 import { employees as initialEmployees, subscriptions as initialSubscriptions } from '@/lib/mock-data';
 import { PlusCircle } from "lucide-react";
 import { useEffect, useState } from "react";

@@ -3,8 +3,6 @@
 import { revalidatePath } from 'next/cache';
 import { graphqlQuery, INVENTORY_QUERIES, EmployeeInput } from '@/lib/graphql-client';
 import type { Employee, EmployeeFormValues } from '@/lib/schemas/settings';
-import { getLocations } from '../locations/actions';
-import { getProjects } from '../projects/actions';
 
 export async function getEmployees(): Promise<{ employees: Employee[]; error: boolean }> {
   try {
@@ -22,7 +20,7 @@ export async function getEmployees(): Promise<{ employees: Employee[]; error: bo
 
     const employees = response.data.employees.data.map((emp: any) => ({
       id: emp.id,
-      employeeId: emp.employee_id,
+      employee_id: emp.employee_id,
       name: emp.name,
       email: emp.email || '',
       location: emp.location || '',
@@ -30,7 +28,7 @@ export async function getEmployees(): Promise<{ employees: Employee[]; error: bo
     }));
 
     // Sort by employee ID
-    employees.sort((a: Employee, b: Employee) => (a.employeeId || '').localeCompare(b.employeeId || ''));
+    employees.sort((a: Employee, b: Employee) => (a.employee_id || '').localeCompare(b.employee_id || ''));
 
     return { employees, error: false };
   } catch (error: any) {
@@ -45,7 +43,7 @@ async function getNextEmployeeId(): Promise<string> {
 
   if (result.employees) {
     result.employees.forEach((emp: Employee) => {
-      const id = emp.employeeId;
+      const id = emp.employee_id;
       if (id && id.startsWith('EMP')) {
         const num = parseInt(id.substring(3), 10);
         if (!isNaN(num) && num > maxId) {
@@ -132,11 +130,11 @@ export async function saveEmployeesBatch(employees: EmployeeFormValues[]): Promi
   try {
     const result = await getEmployees();
     const existingEmployees = result.employees || [];
-    const existingIds = new Set(existingEmployees.map((emp: Employee) => emp.employeeId));
+    const existingIds = new Set(existingEmployees.map((emp: Employee) => emp.employee_id));
     let currentMaxId = 0;
 
     existingEmployees.forEach((emp: Employee) => {
-      const id = emp.employeeId;
+      const id = emp.employee_id;
       if (id && id.startsWith('EMP')) {
         const num = parseInt(id.substring(3), 10);
         if (!isNaN(num) && num > currentMaxId) {
@@ -153,8 +151,8 @@ export async function saveEmployeesBatch(employees: EmployeeFormValues[]): Promi
       }
 
       let employeeId: string;
-      if (employee.employeeId) {
-        employeeId = employee.employeeId;
+      if (employee.employee_id) {
+        employeeId = employee.employee_id;
         if (existingIds.has(employeeId)) {
           // For batch import, we might just update existing records
           // For now, we'll throw an error to prevent accidental overwrites

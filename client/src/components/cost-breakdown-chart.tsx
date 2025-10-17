@@ -3,7 +3,7 @@
 
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import type { Subscription, Employee } from "@/lib/types"
+import type { Subscription, Employee } from "@/lib/types/index"
 
 interface CostBreakdownChartProps {
     subscriptions: Subscription[];

@@ -1,20 +1,33 @@
 "use client"
 
-import React, { useState, useEffect, useMemo, useTransition, useRef } from "react"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
+import React, { useState, useEffect, useMemo, useCallback, useTransition, useRef, startTransition } from "react"
 import { useRouter } from "next/navigation"
-
-import { getPcsFromGraphQL, getMonitorsFromGraphQL, getPhonesFromGraphQL, getOthersFromGraphQL, getAllAssetsFromGraphQL, getMasterDataFromGraphQL, bulkUpsertPcsToGraphQL, bulkUpsertMonitorsToGraphQL, bulkUpsertPhonesToGraphQL, bulkUpsertOthersToGraphQL, bulkUpsertMixedAssetsToGraphQL, deletePcFromGraphQL, deleteMonitorFromGraphQL, deletePhoneFromGraphQL } from "./graphql-actions"
-import { pcSchema, type PcFormValues, type PcAsset } from "@/lib/schemas/inventory"
-import { type AssetField } from "@/lib/schemas/settings"
+import { useAuth } from "@/context/auth-context"
+import { FiltersSection } from '@/app/inventory/components/filters-section'
+import { AssetFormDialog } from '@/app/inventory/components/asset-form-dialog'
+import { useInventoryData } from './hooks/use-inventory-data'
+import { useAssetFilters } from './hooks/use-asset-filters'
+import { useAssetForm } from './hooks/use-asset-form'
+import { createTableColumns } from './utils/table-helpers'
+import { getStatusText, getEmployeeName, getAssetTypeDisplayName, convertFormValuesToAsset } from './utils/asset-transformation'
+import { ExportDialog } from './components/import-export/export-dialog';
+import { ImportDialog } from './components/import-export/import-dialog';
+import { ImportProgressDialog } from './components/import-export/import-progress-dialog';
+import { ErrorBoundary } from './components/error-boundary';
+import { getPcsFromGraphQL, getMonitorsFromGraphQL, getPhonesFromGraphQL, getOthersFromGraphQL, getAllAssetsFromGraphQL, getMasterDataFromGraphQL, bulkUpsertPcsToGraphQL, bulkUpsertMonitorsToGraphQL, bulkUpsertPhonesToGraphQL, bulkUpsertOthersToGraphQL, bulkUpsertMixedAssetsToGraphQL, deletePcFromGraphQL, deleteMonitorFromGraphQL, deletePhoneFromGraphQL } from "./actions"
+import { pcSchema } from "@/lib/schemas/inventory"
 import { fieldIdToSchemaKeyMap } from "@/lib/data"
+import { 
+  FrontendAsset, 
+  Employee, 
+  Project, 
+  Location,
+  AssetField,
+  PcFormValues
+} from '@/lib/types/index';
 
-// Helper to convert camelCase keys to snake_case for server sort fields
-function toSnakeCase(key: string): string {
-  return key.replace(/[A-Z]/g, (m) => '_' + m.toLowerCase());
-}
-import { useToast } from "@/hooks/use-toast"
+import { toSnakeCase } from './utils/string-helpers'
+import { toast, useToast } from "@/hooks/use-toast"
 
 import {
   Table,
@@ -84,7 +97,28 @@ import { Progress } from "@/components/ui/progress"
 import { buttonVariants } from "@/components/ui/button"
 import { Pagination } from "@/components/ui/pagination"
 import { cn } from "@/lib/utils"
-import { type Employee, type Project, type Location } from '@/lib/schemas/inventory';
+import { useImportExport } from "./hooks/use-import-export"
+import { useDialogState } from "./hooks/use-dialog-state"
+import { useDetailedSearch } from "./hooks/use-detailed-search"
+import { PcTab } from './components/tabs/PcTab';
+import { MonitorTab } from './components/tabs/MonitorTab';
+import { SmartphoneTab } from './components/tabs/SmartphoneTab';
+import { OthersTab } from './components/tabs/OthersTab';
+import { handleImportFile, handleMappingChange, handleAiMatch, handleConfirmImport, showErrorDialog, processFileContent } from "./utils/import-export-utils"
+import { 
+  ASSET_STATUSES, 
+  STATUS_MAPPING, 
+  getStatusBadgeVariant,
+  ASSET_TYPES,
+  PAGINATION_DEFAULTS,
+  IMPORT_EXPORT,
+  STATUS_JP_TO_EN,
+  JAPANESE_HEADERS,
+  EXPORT_COLUMN_ORDER,
+  emptyFormValues 
+} from './constants';
+type PcAsset = FrontendAsset;
+
 
 type InventoryClientPageProps = {
   initialPcs: PcAsset[];
@@ -96,18 +130,7 @@ type InventoryClientPageProps = {
   initialError: string | null;
 };
 
-const allStatuses = ['返却済', '廃止', '保管(使用無)', '利用中', '保管中', '貸出中', '故障中', '利用予約'];
-
-const emptyFormValues: PcFormValues = {
-  id: "", type: "", hostname: "", manufacturer: "", model: "", partNumber: "", serialNumber: "",
-  formFactor: "", os: "", osBit: "", officeSuite: "", softwareLicenseKey: "",
-  wiredMacAddress: "", wiredIpAddress: "", wirelessMacAddress: "", wirelessIpAddress: "",
-  purchaseDate: "", purchasePrice: "", depreciationYears: "", depreciationDept: "",
-  cpu: "", memory: "", location: "", status: "保管中", previousUser: "",
-  userId: "", usageStartDate: "", usageEndDate: "", carryInOutAgreement: "",
-  lastUpdated: "", updatedBy: "", notes: "", notes1: "", notes2: "",
-  notes3: "", notes4: "", notes5: "",
-};
+const allStatuses = [...ASSET_STATUSES];
 
 export default function InventoryClientPage({
   initialPcs,
@@ -119,432 +142,129 @@ export default function InventoryClientPage({
   initialError,
 }: InventoryClientPageProps) {
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
   const { t } = useI18n();
 
-
-  // State for GraphQL data
-  const [isLoadingGraphQL, setIsLoadingGraphQL] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
-  const requestSeqRef = useRef({ pcs: 0, monitors: 0, smartphones: 0, others: 0 });
-  const [pageCache, setPageCache] = useState<{
-    pcs: Record<number, PcAsset[]>;
-    monitors: Record<number, any[]>;
-    smartphones: Record<number, any[]>;
-    others: Record<number, any[]>;
-  }>({ pcs: {}, monitors: {}, smartphones: {}, others: {} });
-  const [graphQLError, setGraphQLError] = useState<string | null>(null);
-
-  const [inventory, setInventory] = useState<{
-    pcs: PcAsset[];
-    monitors: any[];
-    smartphones: any[];
-    software: any[];
-    cloud: any[];
-    others: any[];
-  }>({
-    pcs: [],
-    monitors: [],
-    smartphones: [],
-    software: [],
-    cloud: [],
-    others: [],
+  const {
+    inventory,
+    pagination,
+    isLoading: isLoadingGraphQL,
+    error: graphQLError,
+    fetchMasterData,
+    updatePagination,
+    resetPagination,
+    setIsLoading: setIsLoadingGraphQL,
+    masterDataState,
+    setMasterDataState,
+    systemFields,
+    setSystemFields,
+    sortConfig,
+    setSortConfig,
+    activeTab,
+    setActiveTab,
+    isInitialLoadComplete,
+    setIsInitialLoadComplete,
+    fetchAllData,
+    handleSort
+    
+  } = useInventoryData({
+    initialLocations: initialLocations,
+    initialEmployees: initialEmployees,
+    initialProjects: initialProjects,
+    initialSystemFields: initialSystemFields
   });
 
-  const [masterDataState, setMasterDataState] = useState({
-    locations: initialLocations || [],
-    projects: initialProjects || [],
-    employees: initialEmployees || [],
-  });
+  const {
+    filters,
+    setFilters,
+    inputValues,
+    detailedFilters,
+    setDetailedFilters,
+    globalInputRef,
+    employeeInputRef,
+    handleFilterChange,
+    handleKeyPress,
+    handleSearch,
+    handleClearSearch,
+    updateDetailedFilters,
+    clearDetailedFilters,
+    setInputValues
+  } = useAssetFilters();
 
+  const {
+    isFormOpen,
+    setIsFormOpen,
+    selectedAsset,
+    setSelectedAsset,
+    isPending,
+    form,
+    openForm,
+    closeForm,
+    handleSubmit: hookHandleSubmit,
+    setIsPending
+  } = useAssetForm();
 
-  const [systemFields, setSystemFields] = useState<AssetField[]>(initialSystemFields || []);
+  const {
+    isImportDialogOpen,
+    setIsImportDialogOpen,
+    isMappingAiLoading,
+    setIsMappingAiLoading,
+    fileHeaders,
+    setFileHeaders,
+    fileData,
+    setFileData,
+    mappings,
+    setMappings,
+    fileBuffer,
+    setFileBuffer,
+    fileEncoding,
+    setFileEncoding,
+    fileName,
+    setFileName,
+    fileInputRef,
+    importProgress,
+    setImportProgress,
+    isImportProgressDialogOpen,
+    setIsImportProgressDialogOpen,
+    isImporting,
+    setIsImporting,
+    pcsToImport,
+    setPcsToImport,
+    importSummary,
+    setImportSummary,
+    isExporting,
+    setIsExporting,
+    handleAiMatch,
+    handleImportFile,
+    handleMappingChange,
+    handleConfirmImport,
+  } = useImportExport({ 
+    systemFields, 
+    onError: (title, description) => setErrorDialogState({ isOpen: true, title, description: String(description) }), 
+    onSuccess: (message) => toast({ title: 'Success', description: message }),
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(initialError);
+    });
 
-  const [isFormOpen, setIsFormOpen] = useState(false)
-  const [selectedPc, setSelectedPc] = useState<PcAsset | null>(null)
-  const [selectedMonitor, setSelectedMonitor] = useState<any | null>(null)
-  const [selectedSmartphone, setSelectedSmartphone] = useState<any | null>(null)
-  const [selectedOther, setSelectedOther] = useState<any | null>(null)
-  const [allOthersAssets, setAllOthersAssets] = useState<any[]>([]) // Store ALL others assets for client-side pagination
-  const [allPcsAssets, setAllPcsAssets] = useState<any[]>([]) // Store ALL PC assets
-  const [allMonitorsAssets, setAllMonitorsAssets] = useState<any[]>([]) // Store ALL monitor assets
-  const [allSmartphonesAssets, setAllSmartphonesAssets] = useState<any[]>([]) // Store ALL smartphone assets
-  const [filters, setFilters] = useState<{
-    locations: string[];
-    statuses: string[];
-    employee: string;
-    global: string;
-  }>({
-    locations: [],
-    statuses: [],
-    employee: "",
-    global: ""
-  })
+  const {
+    isDeleteDialogOpen,
+    setIsDeleteDialogOpen,
+    isDetailedSearchOpen,
+    setIsDetailedSearchOpen,
+    errorDialogState,
+    setErrorDialogState,
+    handleDeleteDialogOpen,
+    handleDetailedSearchOpen,
+    handleErrorDialogOpen,
+    handleErrorDialogClose
+  } = useDialogState();
 
+  const tableColumns = useMemo(() => createTableColumns(t), [t]);
+  const { detailedSearchForm } = useDetailedSearch();
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
 
-  const inputValuesRef = useRef({ employee: "", global: "" });
-  const globalInputRef = useRef<HTMLInputElement>(null);
-  const employeeInputRef = useRef<HTMLInputElement>(null);
-  const [inputValues, setInputValues] = useState({ employee: "", global: "" })
-  const [sortConfig, setSortConfig] = useState<{ key: keyof PcAsset; direction: 'asc' | 'desc' } | null>(null);
-  const [isPending, startTransition] = useTransition();
-  const { toast } = useToast()
-
-  // Pagination state for each tab
-  const [pagination, setPagination] = useState({
-    pcs: { currentPage: 1, itemsPerPage: 100, totalCount: 0 },
-    monitors: { currentPage: 1, itemsPerPage: 100, totalCount: 0 },
-    smartphones: { currentPage: 1, itemsPerPage: 100, totalCount: 0 },
-    others: { currentPage: 1, itemsPerPage: 100, totalCount: 0 },
-  });
-
-  // Active tab state
-  const [activeTab, setActiveTab] = useState("pcs");
-
-  // Helper functions for pagination
-  const updatePagination = (tab: keyof typeof pagination, updates: Partial<typeof pagination.pcs>) => {
-    setPagination(prev => ({
-      ...prev,
-      [tab]: { ...prev[tab], ...updates }
-    }));
-  };
-
-  const resetPagination = (tab: keyof typeof pagination) => {
-    setPagination(prev => ({
-      ...prev,
-      [tab]: { ...prev[tab], currentPage: 1 }
-    }));
-  };
-
-  // Function to fetch PCs with server-side pagination
-  const fetchPcsWithPagination = async (page: number = 1) => {
-    try {
-      const seq = ++requestSeqRef.current.pcs;
-      const { pcs, pagination: pageInfo } = await getPcsFromGraphQL(page, 100, {
-        locations: filters.locations,
-        statuses: filters.statuses,
-        employee: filters.employee,
-        global: filters.global,
-        details: detailedFilters,
-        sort_field: sortConfig ? toSnakeCase(sortConfig.key) : 'asset_id',
-        sort_direction: sortConfig?.direction || 'asc',
-      });
-      if (seq !== requestSeqRef.current.pcs) return; // stale
-
-      // cache page
-      setPageCache(prev => ({ ...prev, pcs: { ...prev.pcs, [page]: pcs } }));
-
-      setInventory(prev => ({
-        ...prev,
-        pcs
-      }));
-
-      updatePagination('pcs', {
-        currentPage: pageInfo?.currentPage || page,
-        totalCount: pageInfo?.total || 0
-      });
-    } catch (error) {
-      console.error('Error handling PCs pagination:', error);
-    }
-  };
-
-  // Function to fetch Monitors with server-side pagination
-  const fetchMonitorsWithPagination = async (page: number = 1) => {
-    try {
-      const seq = ++requestSeqRef.current.monitors;
-      const { monitors, pagination: pageInfo } = await getMonitorsFromGraphQL(page, 100, {
-        locations: filters.locations,
-        statuses: filters.statuses,
-        employee: filters.employee,
-        global: filters.global,
-        details: detailedFilters,
-        sort_field: sortConfig ? toSnakeCase(sortConfig.key) : 'asset_id',
-        sort_direction: sortConfig?.direction || 'asc',
-      });
-      if (seq !== requestSeqRef.current.monitors) return; // stale
-
-      setPageCache(prev => ({ ...prev, monitors: { ...prev.monitors, [page]: monitors } }));
-
-      setInventory(prev => ({
-        ...prev,
-        monitors
-      }));
-
-      updatePagination('monitors', {
-        currentPage: pageInfo?.currentPage || page,
-        totalCount: pageInfo?.total || 0
-      });
-    } catch (error) {
-      console.error('Error handling Monitors pagination:', error);
-    }
-  };
-
-  // Function to fetch Smartphones with server-side pagination
-  const fetchSmartphonesWithPagination = async (page: number = 1) => {
-    try {
-      const seq = ++requestSeqRef.current.smartphones;
-      const { phones, pagination: pageInfo } = await getPhonesFromGraphQL(page, 100, {
-        locations: filters.locations,
-        statuses: filters.statuses,
-        employee: filters.employee,
-        global: filters.global,
-        details: detailedFilters,
-        sort_field: sortConfig ? toSnakeCase(sortConfig.key) : 'asset_id',
-        sort_direction: sortConfig?.direction || 'asc',
-      });
-      if (seq !== requestSeqRef.current.smartphones) return; // stale
-
-      setPageCache(prev => ({ ...prev, smartphones: { ...prev.smartphones, [page]: phones } }));
-
-      setInventory(prev => ({
-        ...prev,
-        smartphones: phones
-      }));
-
-      updatePagination('smartphones', {
-        currentPage: pageInfo?.currentPage || page,
-        totalCount: pageInfo?.total || 0
-      });
-    } catch (error) {
-      console.error('Error handling Smartphones pagination:', error);
-    }
-  };
-
-  // Function to handle Others pagination (now server-side)
-  const fetchOthersWithPagination = async (page: number = 1) => {
-    try {
-      const seq = ++requestSeqRef.current.others;
-      const { others, pagination: pageInfo } = await getOthersFromGraphQL(page, 100, {
-        locations: filters.locations,
-        statuses: filters.statuses,
-        employee: filters.employee,
-        global: filters.global,
-        details: detailedFilters,
-        sort_field: sortConfig ? toSnakeCase(sortConfig.key) : 'asset_id',
-        sort_direction: sortConfig?.direction || 'asc',
-      });
-      if (seq !== requestSeqRef.current.others) return; // stale
-
-      // cache page
-      setPageCache(prev => ({ ...prev, others: { ...prev.others, [page]: others } }));
-
-      setInventory(prev => ({
-        ...prev,
-        others
-      }));
-
-      updatePagination('others', {
-        currentPage: pageInfo?.currentPage || page,
-        totalCount: pageInfo?.total || 0
-      });
-    } catch (error) {
-      console.error('Error handling Others pagination:', error);
-    }
-  };
-
-  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
-  const [isMappingAiLoading, setIsMappingAiLoading] = useState(false);
-  const [fileHeaders, setFileHeaders] = useState<string[]>([]);
-  const [fileData, setFileData] = useState<Record<string, string>[]>([]);
-  const [mappings, setMappings] = useState<Record<string, string | null>>({});
-  const [fileBuffer, setFileBuffer] = useState<ArrayBuffer | null>(null);
-  const [fileEncoding, setFileEncoding] = useState('UTF-8');
-  const [fileName, setFileName] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
-  const [isImportProgressDialogOpen, setIsImportProgressDialogOpen] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
-  const [pcsToImport, setPcsToImport] = useState<(PcFormValues & { id?: string })[]>([]);
-  const [importSummary, setImportSummary] = useState<{
-    total: number;
-    pcs: number;
-    monitors: number;
-    phones: number;
-    others: number;
-    errors: string[];
-    categorizationDetails?: {
-      pcs: string[];
-      monitors: string[];
-      phones: string[];
-      others: string[];
-    };
-  } | null>(null);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-
-  const [isDetailedSearchOpen, setIsDetailedSearchOpen] = useState(false);
-  const [detailedFilters, setDetailedFilters] = useState<Partial<PcFormValues>>({});
-
-  // Function to handle page changes for each tab
-  const handlePageChange = async (tab: keyof typeof pagination, page: number) => {
-    updatePagination(tab, { currentPage: page });
-    setIsLoadingGraphQL(true);
-
-    try {
-      // Use cache if available to render instantly
-      if (tab === 'pcs' && pageCache.pcs[page]) {
-        setInventory(prev => ({ ...prev, pcs: pageCache.pcs[page] }));
-        return;
-      }
-      if (tab === 'monitors' && pageCache.monitors[page]) {
-        setInventory(prev => ({ ...prev, monitors: pageCache.monitors[page] }));
-        return;
-      }
-      if (tab === 'smartphones' && pageCache.smartphones[page]) {
-        setInventory(prev => ({ ...prev, smartphones: pageCache.smartphones[page] }));
-        return;
-      }
-      if (tab === 'others' && pageCache.others[page]) {
-        setInventory(prev => ({ ...prev, others: pageCache.others[page] }));
-        return;
-      }
-
-      switch (tab) {
-        case 'pcs':
-          await fetchPcsWithPagination(page);
-          break;
-        case 'monitors':
-          await fetchMonitorsWithPagination(page);
-          break;
-        case 'smartphones':
-          await fetchSmartphonesWithPagination(page);
-          break;
-        case 'others':
-          await fetchOthersWithPagination(page);
-          break;
-      }
-    } catch (error) {
-      console.error(`Error changing page for ${tab}:`, error);
-    } finally {
-      setIsLoadingGraphQL(false);
-    }
-  };
-
-  // Track if initial load is complete to prevent unnecessary refetches
-  const [isInitialLoadComplete, setIsInitialLoadComplete] = useState(false);
-
-  // When filters change, reset to page 1 and refetch ONLY the active tab
+  // Fetch all data on component mount for client-side filtering and pagination
   useEffect(() => {
-    // Skip refetch on initial load - let fetchDataFromGraphQL handle it
-    if (!isInitialLoadComplete) return;
-
-    const resetAndRefetchActive = async () => {
-      const tab = activeTab as keyof typeof pagination;
-      updatePagination(tab, { currentPage: 1 });
-      setIsLoadingGraphQL(true);
-      try {
-        if (tab === 'pcs') await fetchPcsWithPagination(1);
-        else if (tab === 'monitors') await fetchMonitorsWithPagination(1);
-        else if (tab === 'smartphones') await fetchSmartphonesWithPagination(1);
-        else if (tab === 'others') await fetchOthersWithPagination(1);
-      } catch (e) {
-        console.error('Error refetching after filters change:', e);
-      } finally {
-        setIsLoadingGraphQL(false);
-      }
-    };
-    resetAndRefetchActive();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, filters.locations, filters.statuses, filters.employee, filters.global, JSON.stringify(detailedFilters), isInitialLoadComplete]);
-
-
-
-  // Function to fetch data from GraphQL
-  const fetchDataFromGraphQL = async () => {
-    setIsLoadingGraphQL(true);
-    setGraphQLError(null);
-
-    try {
-
-      // Fetch first page via fetchers to populate cache and state; fetch Others + master data in parallel
-      await Promise.all([
-        fetchPcsWithPagination(1),
-        fetchMonitorsWithPagination(1),
-        fetchSmartphonesWithPagination(1),
-        fetchOthersWithPagination(1),
-      ]);
-      const [masterDataResult] = await Promise.all([
-        getMasterDataFromGraphQL()
-      ]);
-
-
-      // Store ALL assets as empty for server-side pagination
-      setAllPcsAssets([]);
-      setAllMonitorsAssets([]);
-      setAllSmartphonesAssets([]);
-      setAllOthersAssets([]);
-
-      // Set current page data from server for all paginated tabs
-      setInventory(prev => ({
-        ...prev,
-        // DO NOT set any inventory data here to avoid stale overwrite; sequenced fetchers will set them
-      }));
-
-      // Pagination for all tabs already set by fetchers
-
-      // Update master data state
-      if (masterDataResult.masterData) {
-        const masterData = masterDataResult.masterData;
-
-
-        // Deduplicate locations, employees, and projects by name, keeping the first occurrence
-        const deduplicatedLocations = masterData.locations?.filter((location, index, self) =>
-          index === self.findIndex(l => l.name === location.name)
-        ) || [];
-
-        const deduplicatedEmployees = masterData.employees?.filter((employee, index, self) =>
-          index === self.findIndex(e => e.name === employee.name)
-        ) || [];
-
-        const deduplicatedProjects = masterData.projects?.filter((project, index, self) =>
-          index === self.findIndex(p => p.name === project.name)
-        ) || [];
-
-
-        setMasterDataState(prev => ({
-          ...prev,
-          locations: deduplicatedLocations,
-          projects: deduplicatedProjects,
-          employees: deduplicatedEmployees,
-        }));
-
-      }
-
-      // Check for errors
-      const errors = [
-        masterDataResult.error
-      ].filter(Boolean);
-
-      if (errors.length > 0) {
-        console.error('GraphQL errors found:', errors);
-        setGraphQLError(errors.join('; '));
-        toast({
-          title: t('actions.error'),
-          description: t('errors.graphql_fetch_failed'),
-          variant: 'destructive'
-        });
-      } else {
-        // Removed automatic success toast on page load to prevent duplicate messages
-        // Success toasts are still shown for user-initiated actions like saving assets
-      }
-    } catch (error: any) {
-      console.error('Error fetching data from GraphQL:', error);
-      setGraphQLError(error.message || 'Failed to fetch data');
-      toast({
-        title: t('actions.error'),
-        description: t('errors.graphql_fetch_failed'),
-        variant: 'destructive'
-      });
-    } finally {
-      setIsLoadingGraphQL(false);
-      setIsInitialLoadComplete(true); // Mark initial load as complete
-    }
-  };
-
-  // Fetch data on component mount
-  useEffect(() => {
-    fetchDataFromGraphQL();
+    fetchAllData();
   }, []);
 
   // Memoize display names to avoid expensive lookups on every render
@@ -560,9 +280,10 @@ export default function InventoryClientPage({
     return names;
   }, [systemFields, t]);
 
-  const getDisplayName = (key: keyof PcFormValues): string => {
+  // Memoize getDisplayName function to prevent recreation
+  const getDisplayName = useCallback((key: keyof PcFormValues) => {
     return displayNames[key] || key;
-  };
+  }, [displayNames]);
 
   // Memoize dropdown options to prevent recreation on every render
   const employeeOptions = useMemo(() =>
@@ -580,65 +301,6 @@ export default function InventoryClientPage({
       </SelectItem>
     )), [masterDataState.locations]
   );
-
-  // Memoized form field components to prevent unnecessary re-renders
-  const MemoizedTextField = React.memo<{ name: keyof PcFormValues; label: string; type?: string }>(
-    ({ name, label, type = "text" }) => (
-      <FormField control={form.control} name={name} render={({ field }) => (
-        <FormItem>
-          <FormLabel>{label}</FormLabel>
-          <FormControl>
-            <Input type={type} {...field} />
-          </FormControl>
-          <FormMessage />
-        </FormItem>
-      )} />
-    )
-  );
-
-  const MemoizedTextArea = React.memo<{ name: keyof PcFormValues; label: string }>(
-    ({ name, label }) => (
-      <FormField control={form.control} name={name} render={({ field }) => (
-        <FormItem>
-          <FormLabel>{label}</FormLabel>
-          <FormControl>
-            <Textarea {...field} />
-          </FormControl>
-          <FormMessage />
-        </FormItem>
-      )} />
-    )
-  );
-
-  const MemoizedSelectField = React.memo<{ name: keyof PcFormValues; label: string; options: React.ReactNode; placeholder?: string }>(
-    ({ name, label, options, placeholder }) => (
-      <FormField control={form.control} name={name} render={({ field }) => (
-        <FormItem>
-          <FormLabel>{label}</FormLabel>
-          <Select onValueChange={field.onChange} value={field.value ?? ""}>
-            <FormControl>
-              <SelectTrigger>
-                <SelectValue placeholder={placeholder} />
-              </SelectTrigger>
-            </FormControl>
-            <SelectContent>{options}</SelectContent>
-          </Select>
-          <FormMessage />
-        </FormItem>
-      )} />
-    )
-  );
-
-  const detailedSearchForm = useForm<PcFormValues>({
-    defaultValues: {},
-  });
-
-  const [errorDialogState, setErrorDialogState] = useState<{
-    isOpen: boolean;
-    title: string;
-    description: string | React.ReactNode;
-  }>({ isOpen: false, title: '', description: '' });
-
 
   const visibleColumns = useMemo(() => {
     if (!systemFields) return [];
@@ -667,207 +329,6 @@ export default function InventoryClientPage({
     });
   }, [systemFields]);
 
-  const showErrorDialog = (title: string, description: string | React.ReactNode) => {
-    setErrorDialogState({ isOpen: true, title, description });
-  };
-
-  const robustCsvParser = (csvText: string): { headers: string[], data: Record<string, string>[] } => {
-    const text = csvText.replace(/\r\n/g, '\n').trim();
-
-    const firstLineEnd = text.indexOf('\n');
-    const firstLine = firstLineEnd === -1 ? text : text.substring(0, firstLineEnd);
-    const delimiter = firstLine.includes('\t') ? '\t' : ',';
-
-    const rows: string[][] = [];
-    let currentRow: string[] = [];
-    let field = '';
-    let inQuotes = false;
-
-    for (let i = 0; i < text.length; i++) {
-      const char = text[i];
-
-      if (inQuotes) {
-        if (char === '"') {
-          if (i + 1 < text.length && text[i + 1] === '"') {
-            field += '"';
-            i++; // Skip the escaped quote
-          } else {
-            inQuotes = false;
-          }
-        } else {
-          field += char;
-        }
-      } else {
-        if (char === delimiter) {
-          currentRow.push(field);
-          field = '';
-        } else if (char === '\n') {
-          currentRow.push(field);
-          if (currentRow.length > 1 || (currentRow.length === 1 && currentRow[0].trim() !== '')) {
-            rows.push(currentRow);
-          }
-          currentRow = [];
-          field = '';
-        } else if (char === '"' && field.length === 0) {
-          inQuotes = true;
-        } else {
-          field += char;
-        }
-      }
-    }
-
-    // Add the last row if file doesn't end with newline
-    if (field || currentRow.length > 0) {
-      currentRow.push(field);
-      if (currentRow.length > 1 || (currentRow.length === 1 && currentRow[0].trim() !== '')) {
-        rows.push(currentRow);
-      }
-    }
-
-    if (rows.length === 0) {
-      return { headers: [], data: [] };
-    }
-
-    const headers = rows.shift()!.map(h => h.trim().replace(/^"|"$/g, ''));
-
-    const data = rows.map(rowData => {
-      const obj: Record<string, string> = {};
-      const paddedRow = rowData.concat(Array(Math.max(0, headers.length - rowData.length)).fill(''));
-
-      headers.forEach((header, i) => {
-        const value = paddedRow[i] || '';
-        obj[header] = value.trim().replace(/^"|"$/g, '');
-      });
-      return obj;
-    });
-
-    return { headers, data };
-  }
-
-  const processFileContent = (buffer: ArrayBuffer, encoding: string) => {
-    try {
-      const decoder = new TextDecoder(encoding, { fatal: true });
-      const text = decoder.decode(buffer);
-
-      if (!text) {
-        showErrorDialog(t('actions.error'), t('errors.file_empty'));
-        return;
-      }
-
-      const { headers, data } = robustCsvParser(text);
-
-      if (headers.length === 0 || data.length === 0) {
-        showErrorDialog(t('actions.error'), t('errors.file_no_header_or_data'));
-        return;
-      }
-
-      setFileHeaders(headers);
-      setFileData(data);
-
-      const initialMappings: Record<string, string | null> = {};
-      const availableFields = systemFields.filter(field => field.visible && fieldIdToSchemaKeyMap[field.id]);
-
-      availableFields.forEach(field => {
-        if (field.systemName && ['notes', 'notes1', 'notes2', 'notes3', 'notes4', 'notes5'].includes(field.systemName)) {
-          initialMappings[field.id] = null;
-          return;
-        }
-
-        const normalize = (str: string) => str.toLowerCase().replace(/[\s\(\)-_]/g, '');
-        const normalizedField = normalize(field.displayName);
-        const matchedHeader = headers.find(h => normalize(h) === normalizedField);
-        initialMappings[field.id] = matchedHeader || null;
-      });
-
-      setMappings(initialMappings);
-      setIsMappingAiLoading(false);
-    } catch (e: any) {
-      showErrorDialog(t('errors.encoding_error_title'), t('errors.encoding_error_message'));
-      throw e;
-    }
-  };
-
-  const handleImportFile = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      setFileName('');
-      return;
-    }
-    setFileName(file.name);
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const buffer = e.target?.result as ArrayBuffer;
-      if (!buffer) {
-        showErrorDialog(t('actions.error'), t('errors.file_empty'));
-        return;
-      }
-      setFileBuffer(buffer);
-      try {
-        processFileContent(buffer, fileEncoding);
-      } catch (error) {
-        // Keep the import dialog open on failure
-      }
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  const handleConfirmImport = () => {
-    if (fileData.length === 0) {
-      showErrorDialog(t('actions.error'), t('errors.no_data_to_import'));
-      return;
-    }
-
-    const requiredFieldIds = ['field_01']; // Corresponds to id
-    const unmappedRequiredFields = requiredFieldIds
-      .map(id => {
-        const field = systemFields.find(f => f.id === id);
-        const isMapped = mappings[id] && mappings[id] !== '--skip--';
-        return { field, isMapped };
-      })
-      .filter(item => !item.isMapped && item.field)
-      .map(item => item.field!.displayName);
-
-    if (unmappedRequiredFields.length > 0) {
-      showErrorDialog(
-        t('pages.inventory.mapping_dialog.validation_error_title'),
-        <>{t('pages.inventory.mapping_dialog.validation_error_desc')}{unmappedRequiredFields.join(', ')}</>
-      );
-      return;
-    }
-
-    const statusJpToEn: { [key: string]: string } = {
-      '返却済': 'Returned',
-      '廃止': 'Abolished',
-      '保管(使用無)': 'Stored - Not in Use',
-      '利用中': 'In Use',
-      '保管中': 'In Storage',
-      '貸出中': 'On Loan',
-      '故障中': 'Broken',
-      '利用予約': 'Reserved for Use',
-    };
-    // Process all rows as mixed assets
-    const newAssets: any[] = fileData.map(row => {
-      const assetObject: any = {};
-      Object.entries(mappings).forEach(([fieldId, fileHeader]) => {
-        if (fileHeader && fileHeader !== '--skip--' && row[fileHeader] !== undefined) {
-          const schemaKey = fieldIdToSchemaKeyMap[fieldId as keyof typeof fieldIdToSchemaKeyMap];
-          if (schemaKey) {
-            let value = row[fileHeader];
-            assetObject[schemaKey] = value;
-          }
-        }
-      });
-      return assetObject;
-    });
-
-    setPcsToImport(newAssets);
-    setIsImporting(true);
-    setIsImportDialogOpen(false);
-    setImportProgress({ current: 0, total: newAssets.length });
-    setIsImportProgressDialogOpen(true);
-  }
-
   useEffect(() => {
     if (!isImporting || pcsToImport.length === 0) return;
 
@@ -891,8 +352,11 @@ export default function InventoryClientPage({
         }
       }
 
+      // Convert form values to assets
+      const assetsToImport = pcsToImport.map(convertFormValuesToAsset);
+      
       // Perform a single bulk GraphQL upsert
-      const result = await bulkUpsertMixedAssetsToGraphQL(pcsToImport);
+      const result = await bulkUpsertMixedAssetsToGraphQL(assetsToImport);
       if (!result.success) {
         showErrorDialog(t('actions.error'), result.error || t('errors.graphql_import_failed'));
         setIsImportProgressDialogOpen(false);
@@ -902,7 +366,16 @@ export default function InventoryClientPage({
       }
 
       // Store the import summary
-      setImportSummary(result.summary);
+      const summary = result.summary || { pcs: 0, monitors: 0, phones: 0, others: 0, errors: [], categorizationDetails: { pcs: [], monitors: [], phones: [], others: [] } };
+      setImportSummary({
+        total: summary.pcs + summary.monitors + summary.phones + summary.others,
+        pcs: summary.pcs,
+        monitors: summary.monitors,
+        phones: summary.phones,
+        others: summary.others,
+        errors: (summary as any).errors || [],
+        categorizationDetails: (summary as any).categorizationDetails || { pcs: [], monitors: [], phones: [], others: [] }
+      });
 
       // Mark progress as complete
       setImportProgress({ current: totalToImport, total: totalToImport });
@@ -911,15 +384,11 @@ export default function InventoryClientPage({
       toast({
         title: t('actions.success'),
         description: t('actions.import_success_summary', {
-          pcs: result.summary.pcs,
-          monitors: result.summary.monitors,
-          phones: result.summary.phones,
-          others: result.summary.others
         }),
       });
 
-      // Refresh data from GraphQL to reflect imported assets
-      await fetchDataFromGraphQL();
+      // Refresh all data to reflect imported assets
+      await fetchAllData();
 
       setFileHeaders([]);
       setFileData([]);
@@ -941,55 +410,18 @@ export default function InventoryClientPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isImporting, pcsToImport]);
 
-
-  const handleAiMatch = async () => {
-    if (!fileHeaders.length) return;
-    setIsMappingAiLoading(true);
-    try {
-      const availableFields = systemFields
-        .filter(field => field.visible && fieldIdToSchemaKeyMap[field.id])
-        .map(field => ({ id: field.id, name: field.displayName }));
-
-      const aiSuggestions: MapAssetFieldsOutput = await mapAssetFieldsFromCsv({
-        csvHeaders: fileHeaders,
-        systemFields: availableFields,
-      });
-
-      const newMappings = { ...mappings };
-      if (aiSuggestions?.mappings) {
-        aiSuggestions.mappings.forEach(mapping => {
-          if (mapping.csvHeader && fileHeaders.includes(mapping.csvHeader)) {
-            newMappings[mapping.systemFieldId] = mapping.csvHeader;
-          }
-        });
-      }
-
-      setMappings(newMappings);
-      toast({
-        title: t('pages.inventory.mapping_dialog.ai_toast_title'),
-        description: t('pages.inventory.mapping_dialog.ai_toast_desc'),
-      });
-    } catch (error) {
-      console.error("AI matching failed", error);
-      showErrorDialog(t('actions.error'), t('errors.ai_matching_failed'));
-    } finally {
-      setIsMappingAiLoading(false);
-    }
-  }
-
-
-  const handleMappingChange = (fieldId: string, fileHeader: string) => {
-    setMappings(prev => ({ ...prev, [fieldId]: fileHeader }));
-  }
-
-  const form = useForm<PcFormValues>({
-    resolver: zodResolver(pcSchema),
-    defaultValues: emptyFormValues,
-    mode: 'onBlur' // Only validate on blur instead of every keystroke
-  });
-
   // Watch the asset type to conditionally show/hide form sections
   const assetType = form.watch('type');
+
+  // Helper function to get the currently selected asset and its type
+  const getCurrentAsset = () => {
+    if (selectedAsset) {
+      // Determine type based on the asset's type field or other properties
+      const assetType = selectedAsset.type?.toLowerCase() || 'pc';
+      return { asset: selectedAsset, type: assetType };
+    }
+    return null;
+  };
 
   useEffect(() => {
     const currentAsset = getCurrentAsset();
@@ -1000,87 +432,82 @@ export default function InventoryClientPage({
       valuesToSet = { ...currentAsset.asset };
       // Set the type field based on the current asset type
       valuesToSet.type = currentAsset.type;
+      // Ensure both ID fields are properly set for editing
+      valuesToSet.id = currentAsset.asset.id;
+      valuesToSet.assetId = currentAsset.asset.assetId;
     }
 
     // Ensure all keys from PcFormValues are present and are strings
     const sanitizedValues: PcFormValues = Object.keys(pcSchema.shape).reduce((acc, key) => {
       const formKey = key as keyof PcFormValues;
-      acc[formKey] = (valuesToSet as any)[formKey] ?? "";
+      const value = (valuesToSet as any)[formKey];
+      
+      // Convert numeric values to strings for form compatibility
+      if (formKey === 'purchasePrice' || formKey === 'purchasePriceTaxIncluded' || formKey === 'depreciationYears') {
+        acc[formKey] = value ? String(value) : "";
+      } else {
+        acc[formKey] = value ?? "";
+      }
       return acc;
     }, {} as PcFormValues);
 
     form.reset(sanitizedValues);
-  }, [selectedPc, selectedMonitor, selectedSmartphone, selectedOther, form]);
+  }, [selectedAsset, form]);
 
-  // Initialize input values with current filters
-  useEffect(() => {
-    setInputValues({
-      employee: filters.employee,
-      global: filters.global
-    });
-    inputValuesRef.current = {
-      employee: filters.employee,
-      global: filters.global
-    };
-  }, []); // Only run once on mount
+  const onSubmit = useCallback(async (values: PcFormValues) => {
+    try {
+      // Prepare asset data for submission
+      const assetData = { ...values };
 
-  function onSubmit(values: PcFormValues) {
-    startTransition(async () => {
-      try {
-        // Prepare asset data for submission
-        const assetData = { ...values };
-
-        // If we're editing an existing asset, use its ID
-        const currentAsset = getCurrentAsset();
-        if (currentAsset) {
-          assetData.id = currentAsset.asset.id;
-        } else {
-          // Generate a unique ID for new assets if not provided
-          if (!assetData.id || assetData.id.trim() === '') {
-            assetData.id = crypto.randomUUID();
-          } else {
-          }
+      const currentAsset = getCurrentAsset();
+      if (currentAsset) {
+        assetData.id = currentAsset.asset.id;
+        assetData.assetId = currentAsset.asset.assetId;
+      } else {
+        // Generate a unique ID for new assets if not provided
+        if (!assetData.id || assetData.id.trim() === '') {
+          assetData.id = crypto.randomUUID();
         }
-
-        // Determine asset type and route to appropriate GraphQL function
-        const assetType = assetData.type?.toLowerCase();
-        let result;
-
-        if (assetType === 'pc') {
-          result = await bulkUpsertPcsToGraphQL([assetData]);
-        } else if (assetType === 'monitor') {
-          result = await bulkUpsertMonitorsToGraphQL([assetData]);
-        } else if (assetType === 'smartphones') {
-          result = await bulkUpsertPhonesToGraphQL([assetData]);
-        } else {
-          // For 'others' or any unrecognized type, use the others function
-          result = await bulkUpsertOthersToGraphQL([assetData]);
+        if (!assetData.assetId || assetData.assetId.trim() === '') {
+          assetData.assetId = crypto.randomUUID();
         }
-
-        if (result.success) {
-          toast({
-            title: t('actions.success'),
-            description: t('actions.inventory.save_success'),
-          });
-          setIsFormOpen(false);
-          setSelectedPc(null);
-          setSelectedMonitor(null);
-          setSelectedSmartphone(null);
-          setSelectedOther(null);
-          // Add a small delay to ensure server has committed the transaction
-          await new Promise(resolve => setTimeout(resolve, 500));
-          // Refresh the inventory data
-          await fetchDataFromGraphQL();
-        } else {
-          console.error('Failed to save asset:', result.error);
-          showErrorDialog(t('actions.error'), result.error || 'Failed to save asset');
-        }
-      } catch (error) {
-        console.error('Error saving asset:', error);
-        showErrorDialog(t('actions.error'), 'An unexpected error occurred while saving the asset');
       }
-    });
-  }
+
+      // Form submission processing
+      
+      // Determine asset type and route to appropriate GraphQL function
+      const assetType = assetData.type?.toLowerCase();
+      let result;
+
+      if (assetType === 'pc') {
+        result = await bulkUpsertPcsToGraphQL([convertFormValuesToAsset(assetData)]);
+      } else if (assetType === 'monitor') {
+        result = await bulkUpsertMonitorsToGraphQL([convertFormValuesToAsset(assetData)]);
+      } else if (assetType === 'smartphones') {
+        result = await bulkUpsertPhonesToGraphQL([convertFormValuesToAsset(assetData)]);
+      } else {
+        // For 'others' or any unrecognized type, use the others function
+        result = await bulkUpsertOthersToGraphQL([convertFormValuesToAsset(assetData)]);
+      }
+
+      if (result.success) {
+        toast({
+          title: t('actions.success'),
+          description: t('actions.inventory.save_success'),
+        });
+        // Add a small delay to ensure server has committed the transaction
+        await new Promise(resolve => setTimeout(resolve, 500));
+        // Refresh all inventory data
+        await fetchAllData();
+      } else {
+        console.error('Failed to save asset:', result.error);
+        showErrorDialog(t('actions.error'), result.error || 'Failed to save asset');
+      }
+    } catch (error) {
+      console.error('Error saving asset:', error);
+      showErrorDialog(t('actions.error'), 'An unexpected error occurred while saving the asset');
+    }
+  }, [getCurrentAsset, t, toast, showErrorDialog, fetchAllData]);
 
   function onDetailedSearchSubmit(values: PcFormValues) {
     setDetailedFilters(values);
@@ -1092,23 +519,24 @@ export default function InventoryClientPage({
   }
 
   const handleDelete = () => {
-    if (!selectedPc) return;
+    const currentAsset = getCurrentAsset();
+    if (!currentAsset) return;
+    
     startTransition(async () => {
       try {
         // Determine asset type and route to appropriate delete function
-        const assetType = selectedPc.type?.toLowerCase();
+        const assetType = currentAsset.type?.toLowerCase();
         let result;
 
         if (assetType === 'pc') {
-          result = await deletePcFromGraphQL(selectedPc.id);
+          result = await deletePcFromGraphQL(currentAsset.asset.assetId);
         } else if (assetType === 'monitor') {
-          result = await deleteMonitorFromGraphQL(selectedPc.id);
+          result = await deleteMonitorFromGraphQL(currentAsset.asset.assetId);
         } else if (assetType === 'smartphones') {
-          result = await deletePhoneFromGraphQL(selectedPc.id);
+          result = await deletePhoneFromGraphQL(currentAsset.asset.assetId);
         } else {
-          // For 'others' or any unrecognized type, try to delete as PC for now
-          // TODO: Implement deleteOthersFromGraphQL if needed
-          result = await deletePcFromGraphQL(selectedPc.id);
+
+          result = await deletePcFromGraphQL(currentAsset.asset.assetId);
         }
 
         if (result.success) {
@@ -1118,9 +546,9 @@ export default function InventoryClientPage({
           });
           setIsDeleteDialogOpen(false);
           setIsFormOpen(false);
-          setSelectedPc(null);
-          // Refresh the inventory data
-          await fetchDataFromGraphQL();
+          setSelectedAsset(null);
+          // Refresh all inventory data
+          await fetchAllData();
         } else {
           setIsDeleteDialogOpen(false);
           showErrorDialog(t('actions.error'), result.error || 'Failed to delete asset');
@@ -1134,60 +562,22 @@ export default function InventoryClientPage({
   };
 
   const handleAddNew = () => {
-    setSelectedPc(null);
-    setSelectedMonitor(null);
-    setSelectedSmartphone(null);
-    setSelectedOther(null);
+    setSelectedAsset(null);
+    setSelectedAsset(null);
     setIsFormOpen(true);
   }
 
   const handleEdit = (asset: any) => {
-    setSelectedPc(asset);
+    setSelectedAsset(asset);
     setIsFormOpen(true);
   }
 
-  const handleEditMonitor = (asset: any) => {
-    setSelectedMonitor(asset);
-    setIsFormOpen(true);
-  }
-
-  const handleEditSmartphone = (asset: any) => {
-    setSelectedSmartphone(asset);
-    setIsFormOpen(true);
-  }
-
-  const handleEditOther = (asset: any) => {
-    setSelectedOther(asset);
-    setIsFormOpen(true);
-  }
-
-  // Helper function to get the currently selected asset and its type
-  const getCurrentAsset = () => {
-    if (selectedPc) return { asset: selectedPc, type: 'pc' };
-    if (selectedMonitor) return { asset: selectedMonitor, type: 'monitor' };
-    if (selectedSmartphone) return { asset: selectedSmartphone, type: 'smartphone' };
-    if (selectedOther) return { asset: selectedOther, type: 'other' };
-    return null;
-  }
-
-  // Helper function to get asset type display name
-  const getAssetTypeDisplayName = (type: string) => {
-    switch (type) {
-      case 'pc': return t('pages.inventory.tabs.pcs');
-      case 'monitor': return t('pages.inventory.tabs.monitors');
-      case 'smartphone': return t('pages.inventory.tabs.smartphones');
-      case 'other': return t('pages.inventory.tabs.others');
-      default: return type;
-    }
-  }
 
   const handleFormDialogChange = (open: boolean) => {
     setIsFormOpen(open);
     if (!open) {
-      setSelectedPc(null);
-      setSelectedMonitor(null);
-      setSelectedSmartphone(null);
-      setSelectedOther(null);
+      setSelectedAsset(null);
+      setSelectedAsset(null);
     }
   }
 
@@ -1206,110 +596,6 @@ export default function InventoryClientPage({
     }
   }
 
-  const handleFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    // Update ref immediately without triggering re-render
-    inputValuesRef.current[name as keyof typeof inputValuesRef.current] = value;
-    // DO NOT update state - this prevents re-renders during typing
-  }
-
-  const handleSearch = () => {
-    // Read current values from the ref (which gets updated during typing)
-    const currentEmployee = inputValuesRef.current.employee;
-    const currentGlobal = inputValuesRef.current.global;
-
-    // Update display state only when search is performed
-    setInputValues({
-      employee: currentEmployee,
-      global: currentGlobal
-    });
-
-    setFilters(prev => ({
-      ...prev,
-      employee: currentEmployee,
-      global: currentGlobal
-    }))
-  }
-
-  const handleClearSearch = () => {
-    setInputValues({ employee: "", global: "" })
-    inputValuesRef.current = { employee: "", global: "" }
-    setFilters(prev => ({
-      ...prev,
-      employee: "",
-      global: ""
-    }))
-
-    // Clear the actual input fields
-    if (globalInputRef.current) {
-      globalInputRef.current.value = "";
-    }
-    if (employeeInputRef.current) {
-      employeeInputRef.current.value = "";
-    }
-  }
-
-  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      handleSearch()
-    }
-  }
-
-  const getStatusBadgeVariant = (status: string) => {
-    switch (status) {
-      case '利用中':
-      case 'Active':
-        return 'default'
-      case '貸出中':
-      case '利用予約':
-        return 'secondary'
-      case '故障中':
-        return 'destructive'
-      case '廃止':
-      case '返却済':
-        return 'outline'
-      case '保管中':
-      case '保管(使用無)':
-        return 'outline'
-      default:
-        return 'secondary'
-    }
-  }
-
-  // Mapping of Japanese status values to their translations
-  const statusMapping: Record<string, string> = {
-    '返却済': t('labels.statuses.returned'),
-    '廃止': t('labels.statuses.abolished'),
-    '保管(使用無)': t('labels.statuses.stored_not_in_use'),
-    '利用中': t('labels.statuses.in_use'),
-    '保管中': t('labels.statuses.in_storage'),
-    '貸出中': t('labels.statuses.on_loan'),
-    '故障中': t('labels.statuses.broken'),
-    '利用予約': t('labels.statuses.reserved_for_use')
-  };
-
-  const getStatusText = (status: string) => {
-    return statusMapping[status] || status;
-  }
-
-  const handleSort = (key: keyof PcAsset) => {
-    let direction: 'asc' | 'desc' = 'asc';
-    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-      direction = 'desc';
-    }
-    setSortConfig({ key, direction });
-
-    // Refetch current page with new sort so server-side pagination reflects sort order
-    const currentTab = activeTab as keyof typeof pagination;
-    const currentPage = pagination[currentTab].currentPage;
-    if (currentTab === 'pcs') {
-      fetchPcsWithPagination(currentPage);
-    } else if (currentTab === 'monitors') {
-      fetchMonitorsWithPagination(currentPage);
-    } else if (currentTab === 'smartphones') {
-      fetchSmartphonesWithPagination(currentPage);
-    }
-  };
 
   const getSortIcon = (key: keyof PcAsset) => {
     if (!sortConfig || sortConfig.key !== key) {
@@ -1342,7 +628,7 @@ export default function InventoryClientPage({
     // Debug logging
 
     // If using server-side pagination (no client full dataset), trust server filters and skip client filtering
-    if (allPcsAssets.length === 0) {
+    if (allAssets.length === 0) {
       return base;
     }
     const filtered = base.filter(asset => {
@@ -1376,7 +662,7 @@ export default function InventoryClientPage({
       return true;
     });
     return filtered;
-  }, [inventory.pcs, allPcsAssets, filters, visibleColumns, detailedFilters]);
+  }, [inventory.pcs, allAssets, filters, visibleColumns, detailedFilters]);
 
   const sortedPcs = useMemo(() => {
     if (sortConfig !== null) {
@@ -1409,7 +695,7 @@ export default function InventoryClientPage({
   const filteredMonitors = useMemo(() => {
     // For server-side pagination, always use current page data from inventory.monitors
     const base = inventory.monitors;
-    if (allMonitorsAssets.length === 0) {
+    if (allAssets.length === 0) {
       return base;
     }
     return base.filter(asset => {
@@ -1442,12 +728,12 @@ export default function InventoryClientPage({
 
       return true;
     });
-  }, [inventory.monitors, allMonitorsAssets, filters, visibleColumns, detailedFilters]);
+  }, [inventory.monitors, allAssets, filters, visibleColumns, detailedFilters]);
 
   const filteredSmartphones = useMemo(() => {
     // For server-side pagination, always use current page data from inventory.smartphones
     const base = inventory.smartphones;
-    if (allSmartphonesAssets.length === 0) {
+    if (allAssets.length === 0) {
       return base;
     }
     return base.filter(asset => {
@@ -1480,21 +766,23 @@ export default function InventoryClientPage({
 
       return true;
     });
-  }, [inventory.smartphones, allSmartphonesAssets, filters, visibleColumns, detailedFilters]);
+  }, [inventory.smartphones, allAssets, filters, visibleColumns, detailedFilters]);
 
   const filteredOthers = useMemo(() => {
     // For server-side pagination, always use current page data from inventory.others
     const base = inventory.others;
 
-    // Debug logging
-
     // If using server-side pagination (no client full dataset), trust server filters and skip client filtering
-    if (allOthersAssets.length === 0) {
+    if (allAssets.length === 0) {
       return base;
     }
 
     // Fallback to client-side filtering if allOthersAssets is populated (shouldn't happen with server-side pagination)
-    return allOthersAssets.filter(asset => {
+    return allAssets.filter(asset => {
+      if ((asset as any)._source !== 'others') {
+        return false;
+      }
+
       const matchesLocation = filters.locations.length === 0 || filters.locations.includes(asset.location || '');
       const matchesEmployee = !filters.employee || (asset.userId || "").toLowerCase().includes(filters.employee.toLowerCase());
       const matchesStatus = filters.statuses.length === 0 || filters.statuses.includes(asset.status || '');
@@ -1523,7 +811,7 @@ export default function InventoryClientPage({
 
       return true;
     });
-  }, [inventory.others, allOthersAssets, filters, visibleColumns, detailedFilters]);
+  }, [inventory.others, allAssets, filters, visibleColumns, detailedFilters]);
 
   // All tabs now use server-side pagination, so no need to update pagination totals from client-side filtering
 
@@ -1611,6 +899,102 @@ export default function InventoryClientPage({
     return filteredOthers;
   }, [filteredOthers, sortConfig]);
 
+  // Calculate dynamic pagination for each tab based on filtered data
+  const dynamicPcsPagination = useMemo(() => {
+    const totalCount = sortedPcs.length;
+    const itemsPerPage = pagination.pcs.itemsPerPage;
+    const currentPage = pagination.pcs.currentPage;
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
+    
+    // If we have all data and it fits in one page, show all items
+    const effectiveItemsPerPage = totalCount <= itemsPerPage ? totalCount : itemsPerPage;
+    
+    return {
+      currentPage: Math.min(currentPage, Math.max(1, totalPages)),
+      itemsPerPage: effectiveItemsPerPage,
+      totalCount,
+      totalPages: totalCount <= itemsPerPage ? 1 : totalPages
+    };
+  }, [sortedPcs.length, pagination.pcs.currentPage, pagination.pcs.itemsPerPage]);
+
+  const dynamicMonitorsPagination = useMemo(() => {
+    const totalCount = sortedMonitors.length;
+    const itemsPerPage = pagination.monitors.itemsPerPage;
+    const currentPage = pagination.monitors.currentPage;
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
+    
+    const effectiveItemsPerPage = totalCount <= itemsPerPage ? totalCount : itemsPerPage;
+    
+    return {
+      currentPage: Math.min(currentPage, Math.max(1, totalPages)),
+      itemsPerPage: effectiveItemsPerPage,
+      totalCount,
+      totalPages: totalCount <= itemsPerPage ? 1 : totalPages
+    };
+  }, [sortedMonitors.length, pagination.monitors.currentPage, pagination.monitors.itemsPerPage]);
+
+  const dynamicSmartphonesPagination = useMemo(() => {
+    const totalCount = sortedSmartphones.length;
+    const itemsPerPage = pagination.smartphones.itemsPerPage;
+    const currentPage = pagination.smartphones.currentPage;
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
+    
+    const effectiveItemsPerPage = totalCount <= itemsPerPage ? totalCount : itemsPerPage;
+    
+    return {
+      currentPage: Math.min(currentPage, Math.max(1, totalPages)),
+      itemsPerPage: effectiveItemsPerPage,
+      totalCount,
+      totalPages: totalCount <= itemsPerPage ? 1 : totalPages
+    };
+  }, [sortedSmartphones.length, pagination.smartphones.currentPage, pagination.smartphones.itemsPerPage]);
+
+  const dynamicOthersPagination = useMemo(() => {
+    const totalCount = sortedOthers.length;
+    const itemsPerPage = pagination.others.itemsPerPage;
+    const currentPage = pagination.others.currentPage;
+    const totalPages = Math.ceil(totalCount / itemsPerPage);
+    
+    const effectiveItemsPerPage = totalCount <= itemsPerPage ? totalCount : itemsPerPage;
+    
+    return {
+      currentPage: Math.min(currentPage, Math.max(1, totalPages)),
+      itemsPerPage: effectiveItemsPerPage,
+      totalCount,
+      totalPages: totalCount <= itemsPerPage ? 1 : totalPages
+    };
+  }, [sortedOthers.length, pagination.others.currentPage, pagination.others.itemsPerPage]);
+
+  // Apply client-side pagination to sorted data
+  const paginatedPcs = useMemo(() => {
+    const startIndex = (dynamicPcsPagination.currentPage - 1) * dynamicPcsPagination.itemsPerPage;
+    const endIndex = startIndex + dynamicPcsPagination.itemsPerPage;
+    return sortedPcs.slice(startIndex, endIndex);
+  }, [sortedPcs, dynamicPcsPagination]);
+
+  const paginatedMonitors = useMemo(() => {
+    const startIndex = (dynamicMonitorsPagination.currentPage - 1) * dynamicMonitorsPagination.itemsPerPage;
+    const endIndex = startIndex + dynamicMonitorsPagination.itemsPerPage;
+    return sortedMonitors.slice(startIndex, endIndex);
+  }, [sortedMonitors, dynamicMonitorsPagination]);
+
+  const paginatedSmartphones = useMemo(() => {
+    const startIndex = (dynamicSmartphonesPagination.currentPage - 1) * dynamicSmartphonesPagination.itemsPerPage;
+    const endIndex = startIndex + dynamicSmartphonesPagination.itemsPerPage;
+    return sortedSmartphones.slice(startIndex, endIndex);
+  }, [sortedSmartphones, dynamicSmartphonesPagination]);
+
+  const paginatedOthers = useMemo(() => {
+    const startIndex = (dynamicOthersPagination.currentPage - 1) * dynamicOthersPagination.itemsPerPage;
+    const endIndex = startIndex + dynamicOthersPagination.itemsPerPage;
+    return sortedOthers.slice(startIndex, endIndex);
+  }, [sortedOthers, dynamicOthersPagination]);
+
+  // Reset pagination to page 1 when filters change
+  useEffect(() => {
+    resetPagination(activeTab as keyof typeof pagination);
+  }, [filters, activeTab, resetPagination]);
+
   const SortableHeader = ({ columnKey, children }: { columnKey: keyof PcAsset; children: React.ReactNode }) => (
     <TableHead className="h-auto px-2 py-1 whitespace-nowrap cursor-pointer text-xs" onClick={() => handleSort(columnKey)}>
       <div className="flex items-center">
@@ -1641,454 +1025,93 @@ export default function InventoryClientPage({
       );
     }
 
-    // Column configuration for 36-column tables
-    const tableColumns = [
-      { label: t('labels.id'), schemaKey: "id" as keyof PcAsset, sortable: true, minWidth: "80px" },
-      { label: t('labels.hostname'), schemaKey: "hostname" as keyof PcAsset, sortable: true, minWidth: "100px" },
-      { label: t('labels.location'), schemaKey: "location" as keyof PcAsset, sortable: true, minWidth: "80px" },
-      { label: t('labels.userId'), schemaKey: "userId" as keyof PcAsset, sortable: true, minWidth: "100px" },
-      { label: t('labels.status'), schemaKey: "status" as keyof PcAsset, sortable: true, minWidth: "80px" },
-      { label: t('labels.manufacturer'), schemaKey: "manufacturer" as keyof PcAsset, sortable: true, minWidth: "100px" },
-      { label: t('labels.model'), schemaKey: "model" as keyof PcAsset, sortable: true, minWidth: "100px" },
-      { label: t('labels.partNumber'), schemaKey: "partNumber" as keyof PcAsset, sortable: true, minWidth: "100px" },
-      { label: t('labels.serialNumber'), schemaKey: "serialNumber" as keyof PcAsset, sortable: true, minWidth: "120px" },
-      { label: t('labels.formFactor'), schemaKey: "formFactor" as keyof PcAsset, sortable: true, minWidth: "120px" },
-      { label: t('labels.previousUser'), schemaKey: "previousUser" as keyof PcAsset, sortable: true, minWidth: "100px" },
-      { label: t('labels.os'), schemaKey: "os" as keyof PcAsset, sortable: true, minWidth: "100px" },
-      { label: t('labels.osBit'), schemaKey: "osBit" as keyof PcAsset, sortable: true, minWidth: "60px" },
-      { label: t('labels.officeSuite'), schemaKey: "officeSuite" as keyof PcAsset, sortable: true, minWidth: "100px" },
-      { label: t('labels.softwareLicenseKey'), schemaKey: "softwareLicenseKey" as keyof PcAsset, sortable: true, minWidth: "100px" },
-      { label: t('labels.wiredMacAddress'), schemaKey: "wiredMacAddress" as keyof PcAsset, sortable: true, minWidth: "140px" },
-      { label: t('labels.wiredIpAddress'), schemaKey: "wiredIpAddress" as keyof PcAsset, sortable: true, minWidth: "120px" },
-      { label: t('labels.wirelessMacAddress'), schemaKey: "wirelessMacAddress" as keyof PcAsset, sortable: true, minWidth: "140px" },
-      { label: t('labels.wirelessIpAddress'), schemaKey: "wirelessIpAddress" as keyof PcAsset, sortable: true, minWidth: "120px" },
-      { label: t('labels.usageStartDate'), schemaKey: "usageStartDate" as keyof PcAsset, sortable: true, minWidth: "100px" },
-      { label: t('labels.usageEndDate'), schemaKey: "usageEndDate" as keyof PcAsset, sortable: true, minWidth: "100px" },
-      { label: t('labels.carryInOutAgreement'), schemaKey: "carryInOutAgreement" as keyof PcAsset, sortable: true, minWidth: "120px" },
-      { label: t('labels.lastUpdated'), schemaKey: "lastUpdated" as keyof PcAsset, sortable: true, minWidth: "100px" },
-      { label: t('labels.updatedBy'), schemaKey: "updatedBy" as keyof PcAsset, sortable: true, minWidth: "100px" },
-      { label: t('labels.purchaseDate'), schemaKey: "purchaseDate" as keyof PcAsset, sortable: true, minWidth: "100px" },
-      { label: t('labels.purchasePrice'), schemaKey: "purchasePrice" as keyof PcAsset, sortable: true, minWidth: "120px" },
-      { label: t('labels.purchasePriceTaxIncluded'), schemaKey: "purchasePriceTaxIncluded" as keyof PcAsset, sortable: true, minWidth: "120px" },
-      { label: t('labels.depreciationYears'), schemaKey: "depreciationYears" as keyof PcAsset, sortable: true, minWidth: "80px" },
-      { label: t('labels.depreciationDept'), schemaKey: "depreciationDept" as keyof PcAsset, sortable: true, minWidth: "100px" },
-      { label: t('labels.cpu'), schemaKey: "cpu" as keyof PcAsset, sortable: true, minWidth: "100px" },
-      { label: t('labels.memory'), schemaKey: "memory" as keyof PcAsset, sortable: true, minWidth: "80px" },
-      { label: t('labels.notes'), schemaKey: "notes" as keyof PcAsset, sortable: false, minWidth: "200px" },
-    ];
-
     return (
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-grow min-h-0 pt-4">
+      <Tabs value={activeTab} onValueChange={(newTab) => {
+        setActiveTab(newTab);
+        // No need to fetch data since we have all data loaded
+      }} className="flex flex-col flex-grow min-h-0 pt-4">
         <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto shrink-0">
-          <TabsTrigger value="pcs" className="py-1"><Laptop className="mr-2 h-4 w-4" /> {t('pages.inventory.tabs.pcs')}</TabsTrigger>
-          <TabsTrigger value="monitors" className="py-1"><Monitor className="mr-2 h-4 w-4" /> {t('pages.inventory.tabs.monitors')}</TabsTrigger>
-          <TabsTrigger value="smartphones" className="py-1"><Smartphone className="mr-2 h-4 w-4" /> {t('pages.inventory.tabs.smartphones')}</TabsTrigger>
-          <TabsTrigger value="others" className="py-1"><KeyRound className="mr-2 h-4 w-4" /> {t('pages.inventory.tabs.others')}</TabsTrigger>
+        <TabsTrigger value="pcs" className="py-1">
+          <Laptop className="mr-2 h-4 w-4" /> {t('pages.inventory.tabs.pcs')}
+        </TabsTrigger>
+        <TabsTrigger value="monitors" className="py-1">
+          <Monitor className="mr-2 h-4 w-4" /> {t('pages.inventory.tabs.monitors')}
+        </TabsTrigger>
+        <TabsTrigger value="smartphones" className="py-1">
+          <Smartphone className="mr-2 h-4 w-4" /> {t('pages.inventory.tabs.smartphones')}
+        </TabsTrigger>
+        <TabsTrigger value="others" className="py-1">
+          <KeyRound className="mr-2 h-4 w-4" /> {t('pages.inventory.tabs.others')}
+        </TabsTrigger>
         </TabsList>
 
         <TabsContent value="pcs" className="relative flex-grow flex flex-col">
-          <div className="mt-2 h-[450px] w-full overflow-auto border rounded-md">
-            <Table>
-              <TableHeader className="sticky top-0 bg-background z-20">
-                <TableRow>
-                  {tableColumns.map((column) => {
-                    const isSortable = column.sortable;
-                    return isSortable ? (
-                      <SortableHeader key={column.schemaKey} columnKey={column.schemaKey}>
-                        <span className="text-xs" style={{ minWidth: column.minWidth }}>
-                          {column.label}
-                        </span>
-                      </SortableHeader>
-                    ) : (
-                      <TableHead key={column.schemaKey} className="h-auto px-2 py-1 whitespace-nowrap text-xs" style={{ minWidth: column.minWidth }}>
-                        {column.label}
-                      </TableHead>
-                    );
-                  })}
-                </TableRow>
-              </TableHeader>
-              <TableBody className="min-h-[400px]">
-                {sortedPcs.length > 0 ? (
-                  sortedPcs.map((pc, index) => (
-                    <TableRow key={pc.id} onClick={() => handleEdit(pc)} className="cursor-pointer">
-                      {tableColumns.map((column) => {
-                        const value = pc[column.schemaKey];
-                        const displayValue = value || '-';
-
-                        // Special handling for status field (show badge)
-                        if (column.schemaKey === 'status') {
-                          return (
-                            <TableCell key={column.schemaKey} className="text-xs px-2 py-1 whitespace-nowrap">
-                              <Badge variant={getStatusBadgeVariant(displayValue)} className="text-xs">
-                                {getStatusText(displayValue)}
-                              </Badge>
-                            </TableCell>
-                          );
-                        }
-
-                        // Special handling for ID field (monospace font)
-                        if (column.schemaKey === 'id') {
-                          return (
-                            <TableCell key={column.schemaKey} className="font-mono text-xs px-2 py-1 whitespace-nowrap">
-                              {displayValue}
-                            </TableCell>
-                          );
-                        }
-
-                        // Special handling for userId field (show employee name)
-                        if (column.schemaKey === 'userId') {
-                          // The asset object should have an employee property from the GraphQL relationship
-                          const employeeName = (pc as any).employee?.name || displayValue;
-                          return (
-                            <TableCell key={column.schemaKey} className="text-xs px-2 py-1 whitespace-nowrap">
-                              {employeeName}
-                            </TableCell>
-                          );
-                        }
-
-                        // Special handling for notes field (truncate with title)
-                        if (column.schemaKey === 'notes') {
-                          return (
-                            <TableCell key={column.schemaKey} className="text-xs px-2 py-1 whitespace-nowrap max-w-xs truncate" title={displayValue}>
-                              {displayValue}
-                            </TableCell>
-                          );
-                        }
-
-                        // Default cell rendering
-                        return (
-                          <TableCell key={column.schemaKey} className="text-xs px-2 py-1 whitespace-nowrap">
-                            {displayValue}
-                          </TableCell>
-                        );
-                      })}
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={tableColumns.length} className="h-32 text-center text-muted-foreground">
-                      <div className="flex flex-col items-center justify-center h-full">
-                        <Laptop className="h-12 w-12 mb-4 opacity-50" />
-                        <p className="text-lg font-medium">No PCs found</p>
-                        <p className="text-sm">There are no PC assets in your inventory.</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          <div className="h-16 flex-shrink-0 border-t bg-background px-4 py-2">
-            <Pagination
-              currentPage={pagination.pcs.currentPage}
-              totalCount={pagination.pcs.totalCount}
-              itemsPerPage={pagination.pcs.itemsPerPage}
-              onPageChange={(page) => handlePageChange('pcs', page)}
-            />
-          </div>
+          <PcTab
+            assets={paginatedPcs}
+            columns={tableColumns}
+            pagination={dynamicPcsPagination}
+            onPageChange={(page) => updatePagination('pcs', { currentPage: page })}
+            onRowClick={(asset) => openForm(asset)}
+            onSort={(column) => handleSort(column as keyof PcAsset)}
+            sortConfig={sortConfig}
+            emptyStateIcon={Laptop}
+            emptyStateTitle={t('pages.inventory.empty_state.pcs.title')}
+            emptyStateDescription={t('pages.inventory.empty_state.pcs.description')}
+            getStatusBadgeVariant={getStatusBadgeVariant}
+            getStatusText={getStatusText}
+            getEmployeeName={getEmployeeName}
+          />
         </TabsContent>
         <TabsContent value="monitors" className="relative flex-grow flex flex-col">
-          <div className="mt-2 h-[450px] w-full overflow-auto border rounded-md">
-            <Table>
-              <TableHeader className="sticky top-0 bg-background z-20">
-                <TableRow>
-                  {tableColumns.map((column) => {
-                    const isSortable = column.sortable;
-                    return isSortable ? (
-                      <SortableHeader key={column.schemaKey} columnKey={column.schemaKey}>
-                        <span className="text-xs" style={{ minWidth: column.minWidth }}>
-                          {column.label}
-                        </span>
-                      </SortableHeader>
-                    ) : (
-                      <TableHead key={column.schemaKey} className="h-auto px-2 py-1 whitespace-nowrap text-xs" style={{ minWidth: column.minWidth }}>
-                        {column.label}
-                      </TableHead>
-                    );
-                  })}
-                </TableRow>
-              </TableHeader>
-              <TableBody className="min-h-[400px]">
-                {sortedMonitors.length > 0 ? (
-                  sortedMonitors.map((monitor: any, index: number) => (
-                    <TableRow key={monitor.id} onClick={() => handleEditMonitor(monitor)} className="cursor-pointer">
-                      {tableColumns.map((column) => {
-                        const value = monitor[column.schemaKey];
-                        const displayValue = value || '-';
-
-                        // Special handling for status field (show badge)
-                        if (column.schemaKey === 'status') {
-                          return (
-                            <TableCell key={column.schemaKey} className="text-xs px-2 py-1 whitespace-nowrap">
-                              <Badge variant={getStatusBadgeVariant(displayValue)} className="text-xs">
-                                {getStatusText(displayValue)}
-                              </Badge>
-                            </TableCell>
-                          );
-                        }
-
-                        // Special handling for ID field (monospace font)
-                        if (column.schemaKey === 'id') {
-                          return (
-                            <TableCell key={column.schemaKey} className="font-mono text-xs px-2 py-1 whitespace-nowrap">
-                              {displayValue}
-                            </TableCell>
-                          );
-                        }
-
-                        // Special handling for userId field (show employee name)
-                        if (column.schemaKey === 'userId') {
-                          // The asset object should have an employee property from the GraphQL relationship
-                          const employeeName = (monitor as any).employee?.name || displayValue;
-                          return (
-                            <TableCell key={column.schemaKey} className="text-xs px-2 py-1 whitespace-nowrap">
-                              {employeeName}
-                            </TableCell>
-                          );
-                        }
-
-                        // Special handling for notes field (truncate with title)
-                        if (column.schemaKey === 'notes') {
-                          return (
-                            <TableCell key={column.schemaKey} className="text-xs px-2 py-1 whitespace-nowrap max-w-xs truncate" title={displayValue}>
-                              {displayValue}
-                            </TableCell>
-                          );
-                        }
-
-                        // Default cell rendering
-                        return (
-                          <TableCell key={column.schemaKey} className="text-xs px-2 py-1 whitespace-nowrap">
-                            {displayValue}
-                          </TableCell>
-                        );
-                      })}
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={tableColumns.length} className="h-32 text-center text-muted-foreground">
-                      <div className="flex flex-col items-center justify-center h-full">
-                        <Monitor className="h-12 w-12 mb-4 opacity-50" />
-                        <p className="text-lg font-medium">No Monitors found</p>
-                        <p className="text-sm">There are no monitor assets in your inventory.</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          <div className="h-16 flex-shrink-0 border-t bg-background px-4 py-2">
-            <Pagination
-              currentPage={pagination.monitors.currentPage}
-              totalCount={pagination.monitors.totalCount}
-              itemsPerPage={pagination.monitors.itemsPerPage}
-              onPageChange={(page) => handlePageChange('monitors', page)}
-            />
-          </div>
+          <MonitorTab
+            assets={paginatedMonitors}
+            columns={tableColumns}
+            pagination={dynamicMonitorsPagination}
+            onPageChange={(page) => updatePagination('monitors', { currentPage: page })}
+            onRowClick={handleEdit}
+            onSort={(column) => handleSort(column)}
+            sortConfig={sortConfig}
+            emptyStateIcon={Monitor}
+            emptyStateTitle={t('pages.inventory.empty_state.monitors.title')}
+            emptyStateDescription={t('pages.inventory.empty_state.monitors.description')}
+            getStatusBadgeVariant={getStatusBadgeVariant}
+            getStatusText={getStatusText}
+            getEmployeeName={(asset) => (asset as any).employee?.name || asset.userId || '-'}
+          />
         </TabsContent>
         <TabsContent value="smartphones" className="relative flex-grow flex flex-col">
-          <div className="mt-2 h-[450px] w-full overflow-auto border rounded-md">
-            <Table>
-              <TableHeader className="sticky top-0 bg-background z-20">
-                <TableRow>
-                  {tableColumns.map((column) => {
-                    const isSortable = column.sortable;
-                    return isSortable ? (
-                      <SortableHeader key={column.schemaKey} columnKey={column.schemaKey}>
-                        <span className="text-xs" style={{ minWidth: column.minWidth }}>
-                          {column.label}
-                        </span>
-                      </SortableHeader>
-                    ) : (
-                      <TableHead key={column.schemaKey} className="h-auto px-2 py-1 whitespace-nowrap text-xs" style={{ minWidth: column.minWidth }}>
-                        {column.label}
-                      </TableHead>
-                    );
-                  })}
-                </TableRow>
-              </TableHeader>
-              <TableBody className="min-h-[400px]">
-                {sortedSmartphones.length > 0 ? (
-                  sortedSmartphones.map((phone: any, index: number) => (
-                    <TableRow key={phone.id} onClick={() => handleEditSmartphone(phone)} className="cursor-pointer">
-                      {tableColumns.map((column) => {
-                        const value = phone[column.schemaKey];
-                        const displayValue = value || '-';
-
-                        // Special handling for status field (show badge)
-                        if (column.schemaKey === 'status') {
-                          return (
-                            <TableCell key={column.schemaKey} className="text-xs px-2 py-1 whitespace-nowrap">
-                              <Badge variant={getStatusBadgeVariant(displayValue)} className="text-xs">
-                                {getStatusText(displayValue)}
-                              </Badge>
-                            </TableCell>
-                          );
-                        }
-
-                        // Special handling for ID field (monospace font)
-                        if (column.schemaKey === 'id') {
-                          return (
-                            <TableCell key={column.schemaKey} className="font-mono text-xs px-2 py-1 whitespace-nowrap">
-                              {displayValue}
-                            </TableCell>
-                          );
-                        }
-
-                        // Special handling for userId field (show employee name)
-                        if (column.schemaKey === 'userId') {
-                          // The asset object should have an employee property from the GraphQL relationship
-                          const employeeName = (phone as any).employee?.name || displayValue;
-                          return (
-                            <TableCell key={column.schemaKey} className="text-xs px-2 py-1 whitespace-nowrap">
-                              {employeeName}
-                            </TableCell>
-                          );
-                        }
-
-                        // Special handling for notes field (truncate with title)
-                        if (column.schemaKey === 'notes') {
-                          return (
-                            <TableCell key={column.schemaKey} className="text-xs px-2 py-1 whitespace-nowrap max-w-xs truncate" title={displayValue}>
-                              {displayValue}
-                            </TableCell>
-                          );
-                        }
-
-                        // Default cell rendering
-                        return (
-                          <TableCell key={column.schemaKey} className="text-xs px-2 py-1 whitespace-nowrap">
-                            {displayValue}
-                          </TableCell>
-                        );
-                      })}
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={tableColumns.length} className="h-32 text-center text-muted-foreground">
-                      <div className="flex flex-col items-center justify-center h-full">
-                        <Smartphone className="h-12 w-12 mb-4 opacity-50" />
-                        <p className="text-lg font-medium">No Smartphones found</p>
-                        <p className="text-sm">There are no smartphone assets in your inventory.</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          <div className="h-16 flex-shrink-0 border-t bg-background px-4 py-2">
-            <Pagination
-              currentPage={pagination.smartphones.currentPage}
-              totalCount={pagination.smartphones.totalCount}
-              itemsPerPage={pagination.smartphones.itemsPerPage}
-              onPageChange={(page) => handlePageChange('smartphones', page)}
-            />
-          </div>
+          <SmartphoneTab
+            assets={paginatedSmartphones}
+            columns={tableColumns}
+            pagination={dynamicSmartphonesPagination}
+            onPageChange={(page) => updatePagination('smartphones', { currentPage: page })}
+            onRowClick={handleEdit}
+            onSort={(column) => handleSort(column as keyof PcAsset)}
+            sortConfig={sortConfig}
+            emptyStateIcon={Smartphone}
+            emptyStateTitle={t('pages.inventory.empty_state.smartphones.title')}
+            emptyStateDescription={t('pages.inventory.empty_state.smartphones.description')}
+            getStatusBadgeVariant={getStatusBadgeVariant}
+            getStatusText={getStatusText}
+            getEmployeeName={(asset) => (asset as any).employee?.name || asset.userId || '-'}
+          />
         </TabsContent>
         <TabsContent value="others" className="relative flex-grow flex flex-col">
-          <div className="mt-2 h-[450px] w-full overflow-auto border rounded-md">
-            <Table>
-              <TableHeader className="sticky top-0 bg-background z-20">
-                <TableRow>
-                  {tableColumns.map((column) => {
-                    const isSortable = column.sortable;
-                    return isSortable ? (
-                      <SortableHeader key={column.schemaKey} columnKey={column.schemaKey}>
-                        <span className="text-xs" style={{ minWidth: column.minWidth }}>
-                          {column.label}
-                        </span>
-                      </SortableHeader>
-                    ) : (
-                      <TableHead key={column.schemaKey} className="h-auto px-2 py-1 whitespace-nowrap text-xs" style={{ minWidth: column.minWidth }}>
-                        {column.label}
-                      </TableHead>
-                    );
-                  })}
-                </TableRow>
-              </TableHeader>
-              <TableBody className="min-h-[400px]">
-                {sortedOthers.length > 0 ? (
-                  sortedOthers.map((other: any, index: number) => (
-                    <TableRow key={other.id} onClick={() => handleEditOther(other)} className="cursor-pointer">
-                      {tableColumns.map((column) => {
-                        const value = other[column.schemaKey];
-                        const displayValue = value || '-';
-
-                        // Special handling for status field (show badge)
-                        if (column.schemaKey === 'status') {
-                          return (
-                            <TableCell key={column.schemaKey} className="text-xs px-2 py-1 whitespace-nowrap">
-                              <Badge variant={getStatusBadgeVariant(displayValue)} className="text-xs">
-                                {getStatusText(displayValue)}
-                              </Badge>
-                            </TableCell>
-                          );
-                        }
-
-                        // Special handling for ID field (monospace font)
-                        if (column.schemaKey === 'id') {
-                          return (
-                            <TableCell key={column.schemaKey} className="font-mono text-xs px-2 py-1 whitespace-nowrap">
-                              {displayValue}
-                            </TableCell>
-                          );
-                        }
-
-                        // Special handling for userId field (show employee name)
-                        if (column.schemaKey === 'userId') {
-                          // The asset object should have an employee property from the GraphQL relationship
-                          const employeeName = (other as any).employee?.name || displayValue;
-                          return (
-                            <TableCell key={column.schemaKey} className="text-xs px-2 py-1 whitespace-nowrap">
-                              {employeeName}
-                            </TableCell>
-                          );
-                        }
-
-                        // Special handling for notes field (truncate with title)
-                        if (column.schemaKey === 'notes') {
-                          return (
-                            <TableCell key={column.schemaKey} className="text-xs px-2 py-1 whitespace-nowrap max-w-xs truncate" title={displayValue}>
-                              {displayValue}
-                            </TableCell>
-                          );
-                        }
-
-                        // Default cell rendering
-                        return (
-                          <TableCell key={column.schemaKey} className="text-xs px-2 py-1 whitespace-nowrap">
-                            {displayValue}
-                          </TableCell>
-                        );
-                      })}
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell colSpan={tableColumns.length} className="h-32 text-center text-muted-foreground">
-                      <div className="flex flex-col items-center justify-center h-full">
-                        <KeyRound className="h-12 w-12 mb-4 opacity-50" />
-                        <p className="text-lg font-medium">No Other Assets found</p>
-                        <p className="text-sm">There are no other assets in your inventory.</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          <div className="h-16 flex-shrink-0 border-t bg-background px-4 py-2">
-            <Pagination
-              currentPage={pagination.others.currentPage}
-              totalCount={pagination.others.totalCount}
-              itemsPerPage={pagination.others.itemsPerPage}
-              onPageChange={(page) => handlePageChange('others', page)}
-            />
-          </div>
+          <OthersTab
+            assets={paginatedOthers}
+            columns={tableColumns}
+            pagination={dynamicOthersPagination}
+            onPageChange={(page) => updatePagination('others', { currentPage: page })}
+            onRowClick={handleEdit}
+            onSort={(column) => handleSort(column as keyof PcAsset)}
+            sortConfig={sortConfig}
+            emptyStateIcon={KeyRound}
+            emptyStateTitle={t('pages.inventory.empty_state.others.title')}
+            emptyStateDescription={t('pages.inventory.empty_state.others.description')}
+            getStatusBadgeVariant={getStatusBadgeVariant}
+            getStatusText={getStatusText}
+            getEmployeeName={(asset) => (asset as any).employee?.name || asset.userId || '-'}
+          />
         </TabsContent>
       </Tabs>
     );
@@ -2099,7 +1122,7 @@ export default function InventoryClientPage({
       setIsExporting(true);
 
       // Fetch ALL assets from the server (not just current page)
-      const allAssetsResult = await getAllAssetsFromGraphQL(1, 10000); // Large number to get all assets
+      const allAssetsResult = await getAllAssetsFromGraphQL(1, PAGINATION_DEFAULTS.MAX_EXPORT_ITEMS);
 
       if (allAssetsResult.error) {
         console.error("Error fetching all assets for export:", allAssetsResult.error);
@@ -2129,40 +1152,7 @@ export default function InventoryClientPage({
       }
 
       // Define column order based on the provided Japanese CSV format
-      const exportColumnOrder = [
-        'id',                    // GSI内管理番号
-        'hostname',              // ホスト名
-        'type',                  // 資産タイプ
-        'manufacturer',          // メーカー
-        'model',                 // 機種(M)
-        'part_number',           // 型番(P/N)
-        'serial_number',         // 製造番号(S/N)
-        'form_factor',           // 形状 (識別)
-        'location',              // 所在
-        'status',                // 状態
-        'previous_user',         // 旧利用者
-        'user',                  // 利用者
-        'os',                    // OS
-        'os_bit',                // OS bit
-        'office_suite',          // OFFICE
-        'software_license_key',  // soft key
-        'wired_mac_address',     // 有線 (MACアドレス)
-        'wired_ip_address',      // 有線 IPアドレス
-        'wireless_mac_address',  // 無線 (MACアドレス)
-        'wireless_ip_address',   // 無線 IPアドレス
-        'usage_start_date',      // 利用開始日
-        'usage_end_date',        // 利用終了日
-        'carry_in_out_agreement', // 持ち込み契約
-        'last_updated',          // 更新日
-        'updated_by',            // 更新者
-        'notes',                 // 備考
-        'purchase_date',         // 購入日
-        'purchase_price',        // 購入価格 (税込)
-        'depreciation_years',    // 償却年数
-        'depreciation_dept',     // 償却部門
-        'cpu',                   // CPU
-        'memory'                 // MEM
-      ];
+      const exportColumnOrder = [...EXPORT_COLUMN_ORDER];
 
       // Get all unique field names from all assets
       const allFields = new Set<string>();
@@ -2189,44 +1179,8 @@ export default function InventoryClientPage({
       const csvContent = [
         // Header row with Japanese column names as shown in the image
         orderedFieldNames.map(field => {
-          // Map field names to exact Japanese column headers from the image
-          const japaneseHeaders: { [key: string]: string } = {
-            'id': 'GSI内管理番号',
-            'hostname': 'ホスト名',
-            'type': '資産タイプ',
-            'manufacturer': 'メーカー',
-            'model': '機種(M)',
-            'part_number': '型番(P/N)',
-            'serial_number': '製造番号(S/N)',
-            'form_factor': '形状 (識別)',
-            'location': '所在',
-            'status': '状態',
-            'previous_user': '旧利用者',
-            'user': '利用者',
-            'os': 'OS',
-            'os_bit': 'OS bit',
-            'office_suite': 'OFFICE',
-            'software_license_key': 'soft key',
-            'wired_mac_address': '有線 (MACアドレス)',
-            'wired_ip_address': '有線 IPアドレス',
-            'wireless_mac_address': '無線 (MACアドレス)',
-            'wireless_ip_address': '無線 IPアドレス',
-            'usage_start_date': '利用開始日',
-            'usage_end_date': '利用終了日',
-            'carry_in_out_agreement': '持ち込み契約',
-            'last_updated': '更新日',
-            'updated_by': '更新者',
-            'notes': '備考',
-            'purchase_date': '購入日',
-            'purchase_price': '購入価格 (税込)',
-            'depreciation_years': '償却年数',
-            'depreciation_dept': '償却部門',
-            'cpu': 'CPU',
-            'memory': 'MEM'
-          };
-
           // Use Japanese header if available, otherwise fall back to system field display name or field name
-          const displayName = japaneseHeaders[field] ||
+          const displayName = JAPANESE_HEADERS[field] ||
             systemFields.find(f => f.systemName === field)?.displayName ||
             field;
           return `"${displayName}"`;
@@ -2267,11 +1221,12 @@ export default function InventoryClientPage({
       ].join('\n');
 
       // Create and download the file
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const blob = new Blob([csvContent], { type: IMPORT_EXPORT.EXPORT_MIME_TYPE });
       const link = document.createElement('a');
       const url = URL.createObjectURL(blob);
       link.setAttribute('href', url);
-      link.setAttribute('download', `inventory_export_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute('download', `${IMPORT_EXPORT.EXPORT_FILENAME_PREFIX}${new Date().toISOString().split('T')[0]}${IMPORT_EXPORT.EXPORT_FILE_EXTENSION}`);
+      link.setAttribute('download', `${IMPORT_EXPORT.EXPORT_FILENAME_PREFIX}${new Date().toISOString().split('T')[0]}${IMPORT_EXPORT.EXPORT_FILE_EXTENSION}`);
       link.style.visibility = 'hidden';
       document.body.appendChild(link);
       link.click();
@@ -2295,196 +1250,45 @@ export default function InventoryClientPage({
   };
 
   return (
-    <>
+    <ErrorBoundary>
       <Card className="h-full flex flex-col max-h-screen">
         <CardContent className="p-4 flex flex-col flex-grow min-h-0">
-          <Accordion type="single" collapsible className="w-full" defaultValue="filters">
-            <AccordionItem value="filters" className="border rounded-md">
-              <AccordionTrigger className="p-2 text-sm hover:no-underline data-[state=open]:border-b">
-                <div className="flex items-center gap-2">
-                  <SlidersHorizontal className="h-4 w-4" />
-                  <span>{t('pages.inventory.actions_and_filters')}</span>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="p-4 border-t">
-                <div className="space-y-4">
-                  <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                    <div>
-                      <CardTitle className="text-lg">{t('pages.inventory.title')}</CardTitle>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Button variant="outline" onClick={() => setIsImportDialogOpen(true)}><Upload className="mr-2 h-4 w-4" /> {t('pages.inventory.import')}</Button>
-                      <Button variant="outline" onClick={handleExport} disabled={isExporting}>
-                        {isExporting ? (
-                          <Loader className="mr-2 h-4 w-4 animate-spin" />
-                        ) : (
-                          <Download className="mr-2 h-4 w-4" />
-                        )}
-                        {isExporting ? t('pages.inventory.exporting') : t('pages.inventory.export')}
-                      </Button>
-                      <Button onClick={handleAddNew}><FilePlus2 className="mr-2 h-4 w-4" /> {t('pages.inventory.add_new_asset')}</Button>
-                      <Button
-                        variant="outline"
-                        onClick={fetchDataFromGraphQL}
-                        disabled={isLoadingGraphQL}
-                      >
-                        <RefreshCw className={cn("mr-2 h-4 w-4", isLoadingGraphQL && "animate-spin")} />
-                        {isLoadingGraphQL ? t('actions.loading') : t('actions.refresh')}
-                      </Button>
-                    </div>
-                  </div>
-                  <Separator />
-                  <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
-                    <div className="flex gap-2 sm:col-span-2">
-                      <Input
-                        name="global"
-                        placeholder={t('pages.inventory.filter_all')}
-                        defaultValue={inputValues.global}
-                        onChange={handleFilterChange}
+          <FiltersSection
+              filters={filters}
+              setFilters={setFilters}
+              inputValues={inputValues}
+              setInputValues={setInputValues}
+              masterDataState={masterDataState}
+              onImport={() => setIsImportDialogOpen(true)}
+              onExport={() => setIsExportDialogOpen(true)}
+              onAddNew={handleAddNew}
+              onRefresh={() => fetchAllData()}
+              onSearch={handleSearch}
+              onClearSearch={handleClearSearch}
+              onDetailedSearch={() => setIsDetailedSearchOpen(true)}
+              isExporting={isExporting}
+              isLoadingGraphQL={isLoadingGraphQL}
+              globalInputRef={globalInputRef}
+              employeeInputRef={employeeInputRef}
+              onFilterChange={handleFilterChange}
                         onKeyPress={handleKeyPress}
-                        className="bg-background flex-1"
-                        ref={globalInputRef}
-                      />
-                      <Button
-                        variant="outline"
-                        onClick={handleSearch}
-                        className="px-3"
-                      >
-                        <Search className="h-4 w-4" />
-                      </Button>
-                      {(inputValues.global || filters.global) && (
-                        <Button
-                          variant="outline"
-                          onClick={handleClearSearch}
-                          className="px-3"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="w-full justify-between">
-                          <span className="truncate">
-                            {filters.locations.length === 0 || filters.locations.length === masterDataState.locations.length
-                              ? t('pages.inventory.filter_location')
-                              : t('pages.inventory.filter_location_selected', { count: filters.locations.length })
-                            }
-                          </span>
-                          <ChevronDown className="h-4 w-4 opacity-50" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent className="w-[var(--radix-dropdown-menu-trigger-width)]">
-                        <DropdownMenuLabel>{t('pages.inventory.filter_location')}</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onSelect={() => setFilters(prev => ({ ...prev, locations: [...new Set(masterDataState.locations.map(l => l.name))] }))} className="cursor-pointer">
-                          {t('actions.select_all')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => setFilters(prev => ({ ...prev, locations: [] }))} className="cursor-pointer">
-                          {t('actions.deselect_all')}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        {masterDataState.locations.map((location) => (
-                          <DropdownMenuCheckboxItem
-                            key={location.id}
-                            checked={filters.locations.includes(location.name)}
-                            onCheckedChange={(checked) => {
-                              setFilters(prev => ({
-                                ...prev,
-                                locations: checked
-                                  ? [...new Set([...prev.locations, location.name])]
-                                  : prev.locations.filter(s => s !== location.name)
-                              }));
-                            }}
-                            onSelect={e => e.preventDefault()}
-                          >
-                            {location.name}
-                          </DropdownMenuCheckboxItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-
-                    <div className="flex gap-2">
-                      <Input
-                        name="employee"
-                        placeholder={t('pages.inventory.filter_user')}
-                        defaultValue={inputValues.employee}
-                        onChange={handleFilterChange}
-                        onKeyPress={handleKeyPress}
-                        className="bg-background flex-1"
-                        ref={employeeInputRef}
-                      />
-                      <Button
-                        variant="outline"
-                        onClick={handleSearch}
-                        className="px-3"
-                      >
-                        <Search className="h-4 w-4" />
-                      </Button>
-                      {(inputValues.employee || filters.employee) && (
-                        <Button
-                          variant="outline"
-                          onClick={handleClearSearch}
-                          className="px-3"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" className="w-full justify-between">
-                          <span className="truncate">
-                            {filters.statuses.length === 0 || filters.statuses.length === allStatuses.length
-                              ? t('pages.inventory.filter_status')
-                              : t('pages.inventory.filter_status_selected', { count: filters.statuses.length })
-                            }
-                          </span>
-                          <ChevronDown className="h-4 w-4 opacity-50" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent className="w-[var(--radix-popover-trigger-width)]">
-                        <DropdownMenuLabel>{t('pages.inventory.filter_status')}</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onSelect={() => setFilters(prev => ({ ...prev, statuses: allStatuses }))} className="cursor-pointer">
-                          {t('actions.select_all')}
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => setFilters(prev => ({ ...prev, statuses: [] }))} className="cursor-pointer">
-                          {t('actions.deselect_all')}
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        {allStatuses.map((status) => (
-                          <DropdownMenuCheckboxItem
-                            key={status}
-                            checked={filters.statuses.includes(status)}
-                            onCheckedChange={(checked) => {
-                              setFilters(prev => ({
-                                ...prev,
-                                statuses: checked
-                                  ? [...prev.statuses, status]
-                                  : prev.statuses.filter(s => s !== status)
-                              }));
-                            }}
-                            onSelect={e => e.preventDefault()}
-                          >
-                            {getStatusText(status)}
-                          </DropdownMenuCheckboxItem>
-                        ))}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  <div>
-                    <Button variant="outline" onClick={() => setIsDetailedSearchOpen(true)}>
-                      <Search className="mr-2 h-4 w-4" />
-                      {t('pages.inventory.detailed_search_title')}
-                    </Button>
-                  </div>
-                </div>
-              </AccordionContent>
-            </AccordionItem>
-          </Accordion>
-
+              allStatuses={allStatuses}
+              getStatusText={getStatusText}
+          />
+          <AssetFormDialog
+              isOpen={isFormOpen}
+              onOpenChange={closeForm}
+              onSubmit={(data) => hookHandleSubmit(data, onSubmit)}
+              onDelete={() => setIsDeleteDialogOpen(true)}
+              isPending={isPending}
+              currentAsset={selectedAsset}
+              locations={masterDataState.locations}
+              employees={masterDataState.employees}
+              allStatuses={allStatuses}
+              getDisplayName={getDisplayName}
+              form={form}
+              getAssetTypeDisplayName={getAssetTypeDisplayName}
+          />
           {renderContent()}
 
         </CardContent>
@@ -2511,6 +1315,14 @@ export default function InventoryClientPage({
             <div className="flex-grow overflow-y-auto pr-2 pl-1">
               <Form {...form}>
                 <form id="pc-asset-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  {/* Hidden ID fields for editing */}
+                  <FormField control={form.control} name="id" render={({ field }) => (
+                    <input type="hidden" {...field} />
+                  )} />
+                  <FormField control={form.control} name="assetId" render={({ field }) => (
+                    <input type="hidden" {...field} />
+                  )} />
+                  
                   {/* Asset Type Selection - Always visible */}
                   <div className="bg-muted/50 p-4 rounded-lg">
                     <h3 className="text-sm font-medium mb-3">{t('labels.asset_type')}</h3>
@@ -2547,7 +1359,7 @@ export default function InventoryClientPage({
                           <Input value={(() => {
                             const currentAsset = getCurrentAsset();
                             if (currentAsset) {
-                              return currentAsset.asset.id;
+                              return currentAsset.asset.assetId;
                             }
                             return t('labels.autogenerated_id');
                           })()} disabled />
@@ -2628,7 +1440,7 @@ export default function InventoryClientPage({
             </div>
             <DialogFooter className="pt-4 flex-shrink-0 border-t mt-4 flex justify-between w-full">
               <div>
-                {(selectedPc || selectedMonitor || selectedSmartphone || selectedOther) && (
+                {selectedAsset && (
                   <Button type="button" variant="destructive" onClick={() => setIsDeleteDialogOpen(true)} disabled={isPending}>
                     <Trash2 className="mr-2 h-4 w-4" />
                     {t('actions.delete')}
@@ -2644,127 +1456,52 @@ export default function InventoryClientPage({
         </Dialog>
       </Card>
 
-      <Dialog open={isImportDialogOpen} onOpenChange={handleImportDialogChange}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>{t('pages.inventory.import_dialog.title')}</DialogTitle>
-            <DialogDescription>
-              {t('pages.inventory.import_dialog.description')}
-              <br />
-              {t('pages.inventory.import_dialog.description_2')}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 pt-4">
-            <div className="space-y-1.5 md:col-span-1">
-              <Label htmlFor="encoding-select">{t('pages.inventory.mapping_dialog.encoding')}</Label>
-              <Select value={fileEncoding} onValueChange={setFileEncoding}>
-                <SelectTrigger id="encoding-select" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="UTF-8">UTF-8</SelectItem>
-                  <SelectItem value="Shift_JIS">Shift_JIS</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5 md:col-span-4">
-              <Label>{t('actions.select_file')}</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  id="file-upload"
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleImportFile}
-                  accept=".tsv,.csv,text/tab-separated-values,text/csv"
-                  className="hidden"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Upload className="mr-2 h-4 w-4" />
-                  {t('actions.select_file')}
-                </Button>
-                <span className="flex-1 truncate text-sm text-muted-foreground">
-                  {fileName || t('pages.inventory.mapping_dialog.no_file_chosen')}
-                  {fileData.length > 0 && <span className="ml-2 text-foreground">{t('pages.inventory.import_dialog.records_loaded', { count: fileData.length })}</span>}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4 pt-4 border-t">
-            <div className="flex justify-end items-center">
-              <Button variant="outline" onClick={handleAiMatch} disabled={isMappingAiLoading || isPending || fileHeaders.length === 0}>
-                {isMappingAiLoading ? <Loader className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
-                {t('pages.inventory.mapping_dialog.ai_match_button')}
-              </Button>
-            </div>
-
-            <div className="max-h-[50vh] overflow-y-auto pr-4">
-              <div className="relative">
-                {isMappingAiLoading && (
-                  <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-20 rounded-md">
-                    <Loader className="h-8 w-8 animate-spin text-primary" />
-                  </div>
-                )}
-                <Table>
-                  <TableHeader className="sticky top-0 bg-background z-10">
-                    <TableRow>
-                      <TableHead className="font-semibold">{t('pages.inventory.mapping_dialog.system_field')}</TableHead>
-                      <TableHead className="font-semibold">{t('pages.inventory.mapping_dialog.file_column')}</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {systemFields
-                      .filter(field => field.visible && fieldIdToSchemaKeyMap[field.id])
-                      .map((field) => (
-                        <TableRow key={field.id}>
-                          <TableCell className="font-medium">{field.displayName}</TableCell>
-                          <TableCell>
-                            <Select
-                              onValueChange={(value) => handleMappingChange(field.id, value)}
-                              value={mappings[field.id] || ""}
-                              disabled={fileHeaders.length === 0}
-                            >
-                              <SelectTrigger>
-                                <SelectValue placeholder={t('pages.inventory.mapping_dialog.select_column_placeholder')} />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="--skip--">{t('pages.inventory.mapping_dialog.skip_import')}</SelectItem>
-                                {fileHeaders.map((header, index) => (
-                                  <SelectItem key={`${header}-${index}`} value={header}>
-                                    {header}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <DialogClose asChild>
-              <Button variant="secondary" disabled={isPending || isMappingAiLoading}>{t('actions.cancel')}</Button>
-            </DialogClose>
-            <Button onClick={handleConfirmImport} disabled={isPending || isMappingAiLoading || fileHeaders.length === 0}>
-              {isPending ? (
-                <>
-                  <Loader className="mr-2 h-4 w-4 animate-spin" />
-                  {t('actions.importing_progress', { current: importProgress.current, total: importProgress.total })}
-                </>
-              ) : t('pages.inventory.mapping_dialog.confirm_button')}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ImportDialog
+        isOpen={isImportDialogOpen}
+        onOpenChange={setIsImportDialogOpen}
+        onImportComplete={() => setIsImportDialogOpen(false)}
+        systemFields={systemFields}
+        getDisplayName={getDisplayName}
+        fileEncoding={fileEncoding}
+        setFileEncoding={setFileEncoding}
+        fileInputRef={fileInputRef}
+        handleImportFile={handleImportFile}
+        fileName={fileName}
+        fileData={fileData}
+        fileBuffer={fileBuffer}
+        fileHeaders={fileHeaders}
+        mappings={mappings}
+        handleMappingChange={handleMappingChange}
+        handleAiMatch={handleAiMatch}
+        isMappingAiLoading={isMappingAiLoading}
+        isPending={isPending}
+        handleConfirmImport={handleConfirmImport}
+        importProgress={importProgress}
+        onError={(title, description) => setErrorDialogState({ isOpen: true, title, description: String(description) })}
+      />
+      <ImportDialog
+        isOpen={isImportDialogOpen}
+        onOpenChange={setIsImportDialogOpen}
+        onImportComplete={() => setIsImportDialogOpen(false)}
+        systemFields={systemFields}
+        getDisplayName={getDisplayName}
+        fileEncoding={fileEncoding}
+        setFileEncoding={setFileEncoding}
+        fileInputRef={fileInputRef}
+        handleImportFile={handleImportFile}
+        fileName={fileName}
+        fileData={fileData}
+        fileBuffer={fileBuffer}
+        fileHeaders={fileHeaders}
+        mappings={mappings}
+        handleMappingChange={handleMappingChange}
+        handleAiMatch={handleAiMatch}
+        isMappingAiLoading={isMappingAiLoading}
+        isPending={isPending}
+        handleConfirmImport={handleConfirmImport}
+        importProgress={importProgress}
+        onError={(title, description) => setErrorDialogState({ isOpen: true, title, description: String(description) })}
+      />
 
       <AlertDialog open={errorDialogState.isOpen} onOpenChange={(isOpen) => setErrorDialogState(prev => ({ ...prev, isOpen }))}>
         <AlertDialogContent>
@@ -2787,109 +1524,27 @@ export default function InventoryClientPage({
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={isImportProgressDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t('actions.import.progress.title')}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t('actions.import.progress.description')}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="flex flex-col items-center justify-center gap-4 py-8">
-            {isImporting ? (
-              <>
-                <Loader className="h-10 w-10 animate-spin text-primary" />
-                <div className="w-full text-center">
-                  <p className="text-lg font-semibold mb-2">
-                    {t('actions.importing_progress', { current: importProgress.current, total: importProgress.total })}
-                  </p>
-                  <Progress value={(importProgress.total > 0 ? (importProgress.current / importProgress.total) : 0) * 100} className="w-full" />
-                </div>
-              </>
-            ) : importSummary ? (
-              <div className="w-full text-center">
-                <div className="text-green-600 mb-4">
-                  <svg className="h-12 w-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-semibold mb-2">{t('actions.import.progress.complete')}</h3>
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  <p>{t('actions.import.progress.total_processed', { count: importSummary.total })}</p>
-                  <p>{t('actions.import.progress.pcs_imported', { count: importSummary.pcs })}</p>
-                  <p>{t('actions.import.progress.monitors_imported', { count: importSummary.monitors })}</p>
-                  <p>{t('actions.import.progress.phones_imported', { count: importSummary.phones })}</p>
-                  <p>{t('actions.import.progress.others_imported', { count: importSummary.others })}</p>
-
-                  {importSummary.categorizationDetails && (
-                    <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded">
-                      <p className="font-semibold text-blue-800 mb-2">Asset Categorization Details:</p>
-                      {importSummary.categorizationDetails.pcs.length > 0 && (
-                        <div className="mb-2">
-                          <p className="text-blue-700 text-xs font-medium">PCs ({importSummary.categorizationDetails.pcs.length}):</p>
-                          <p className="text-blue-600 text-xs">{importSummary.categorizationDetails.pcs.slice(0, 3).join(', ')}
-                            {importSummary.categorizationDetails.pcs.length > 3 && ` and ${importSummary.categorizationDetails.pcs.length - 3} more`}
-                          </p>
-                        </div>
-                      )}
-                      {importSummary.categorizationDetails.monitors.length > 0 && (
-                        <div className="mb-2">
-                          <p className="text-blue-700 text-xs font-medium">Monitors ({importSummary.categorizationDetails.monitors.length}):</p>
-                          <p className="text-blue-600 text-xs">{importSummary.categorizationDetails.monitors.slice(0, 3).join(', ')}
-                            {importSummary.categorizationDetails.monitors.length > 3 && ` and ${importSummary.categorizationDetails.monitors.length - 3} more`}
-                          </p>
-                        </div>
-                      )}
-                      {importSummary.categorizationDetails.phones.length > 0 && (
-                        <div className="mb-2">
-                          <p className="text-blue-700 text-xs font-medium">Phones ({importSummary.categorizationDetails.phones.length}):</p>
-                          <p className="text-blue-600 text-xs">{importSummary.categorizationDetails.phones.slice(0, 3).join(', ')}
-                            {importSummary.categorizationDetails.phones.length > 3 && ` and ${importSummary.categorizationDetails.phones.length - 3} more`}
-                          </p>
-                        </div>
-                      )}
-                      {importSummary.categorizationDetails.others.length > 0 && (
-                        <div className="mb-2">
-                          <p className="text-blue-700 text-xs font-medium">Others ({importSummary.categorizationDetails.others.length}):</p>
-                          <p className="text-blue-600 text-xs">{importSummary.categorizationDetails.others.slice(0, 3).join(', ')}
-                            {importSummary.categorizationDetails.others.length > 3 && ` and ${importSummary.categorizationDetails.others.length - 3} more`}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {importSummary.errors.length > 0 && (
-                    <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded">
-                      <p className="font-semibold text-red-800">{t('actions.import.progress.errors_encountered')}</p>
-                      {importSummary.errors.map((error, index) => (
-                        <p key={index} className="text-red-700 text-xs">{error}</p>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <Button
-                  className="mt-4"
-                  onClick={() => {
+      <ImportProgressDialog 
+        isOpen={isImportProgressDialogOpen}
+        progress={importProgress}
+        isImporting={isImporting}
+        summary={importSummary}
+        onClose={() => {
                     setIsImportProgressDialogOpen(false);
                     setImportSummary(null);
                   }}
-                >
-                  {t('actions.import.progress.close')}
-                </Button>
-              </div>
-            ) : null}
-          </div>
-        </AlertDialogContent>
-      </AlertDialog>
+      />
 
-      {selectedPc && (
+      {selectedAsset && (
         <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <AlertDialogTitle>{t('actions.are_you_sure')}</AlertDialogTitle>
               <AlertDialogDescription>
-                {t('actions.delete_confirm_message', { item: selectedPc.id })}
+                {(() => {
+                  const currentAsset = getCurrentAsset();
+                  return t('actions.delete_confirm_message', { item: currentAsset?.asset.assetId || currentAsset?.asset.id || 'this asset' });
+                })()}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -2935,6 +1590,12 @@ export default function InventoryClientPage({
               </form>
             </Form>
           </div>
+          <ExportDialog 
+            isOpen={isExportDialogOpen} 
+            onOpenChange={setIsExportDialogOpen} 
+            onExport={handleExport} 
+            isExporting={isExporting} 
+          />
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={handleClearDetailedSearch}>{t('actions.clear')}</Button>
             <DialogClose asChild><Button type="button" variant="secondary">{t('actions.cancel')}</Button></DialogClose>
@@ -2942,6 +1603,13 @@ export default function InventoryClientPage({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+
+      <ExportDialog 
+        isOpen={isExportDialogOpen} 
+        onOpenChange={setIsExportDialogOpen} 
+        onExport={handleExport} 
+        isExporting={isExporting} 
+      />
+    </ErrorBoundary>
   )
 }
