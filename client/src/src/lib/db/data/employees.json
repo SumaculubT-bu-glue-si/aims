@@ -1,0 +1,80 @@
+[
+  {
+    "id": "d42c4358-4414-4510-a772-a330679fee26",
+    "name": "佐藤 太郎",
+    "email": "t.sato@company.com",
+    "location": "Tokyo HQ"
+  },
+  {
+    "id": "dac38d71-eb13-4b19-b3b3-be1fdd75a699",
+    "name": "鈴木 花子",
+    "email": "h.suzuki@company.com",
+    "location": "Fukuoka Branch"
+  },
+  {
+    "id": "ccf9a438-7b29-4e3e-b75c-ab6217532827",
+    "name": "高橋 一郎",
+    "email": "i.takahashi@company.com",
+    "location": "Nagoya Sales"
+  },
+  {
+    "id": "cc21c07d-8d24-4214-8851-c073669f7ff7",
+    "name": "田中 美咲",
+    "email": "m.tanaka@company.com",
+    "location": "Osaka Branch"
+  },
+  {
+    "id": "0afc9f45-043a-4e30-96d9-335e1515b08d",
+    "name": "渡辺 健太",
+    "email": "k.watanabe@company.com",
+    "location": "Sapporo R&D"
+  },
+  {
+    "id": "c04c1e09-a08d-4a1c-b1de-0046496c8f40",
+    "name": "山田 次郎",
+    "email": "j.yamada@company.com",
+    "location": "Tokyo HQ"
+  },
+  {
+    "id": "7fd92656-b0a9-474b-9b6a-55f3eb9572bd",
+    "name": "小林 美香",
+    "email": "m.kobayashi@company.com",
+    "location": "Fukuoka Branch"
+  },
+  {
+    "id": "87732941-2c13-4baf-b9bc-846b748aef60",
+    "name": "渡部 健",
+    "email": "k.watabe@company.com",
+    "location": "Nagoya Sales"
+  },
+  {
+    "id": "e4759c46-ef7d-4452-adf1-f499367d7ce1",
+    "name": "IT管理者",
+    "email": "admin@company.com",
+    "location": "Tokyo HQ"
+  },
+  {
+    "id": "ae49ee50-d7b8-4468-8b2e-e2ffe9378b46",
+    "name": "木村 雅子",
+    "email": "m.kimura@company.com",
+    "location": "Osaka Branch"
+  },
+  {
+    "id": "dcbd03a3-143a-4f50-a015-8b8570f6ae2c",
+    "name": "研究チーム",
+    "email": "research@company.com",
+    "location": "Sapporo R&D"
+  },
+  {
+    "id": "7b913840-373b-48ce-a10b-345741debbde",
+    "name": "インターン生A",
+    "email": "intern@company.com",
+    "location": "Tokyo HQ"
+  },
+  {
+    "id": "e4a1c829-48e2-4307-8d00-fa68afa4cdb6",
+    "name": "会議室共用",
+    "email": "meeting@company.com",
+    "location": "サーバ室"
+  }
+]

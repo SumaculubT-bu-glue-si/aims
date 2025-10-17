@@ -1,0 +1,52 @@
+[
+  {
+    "id": "MON001",
+    "model": "Dell U2723QE",
+    "size": "27-inch",
+    "resolution": "4K",
+    "user": "佐藤 太郎",
+    "project": "Project Phoenix",
+    "location": "Tokyo HQ",
+    "status": "In Use"
+  },
+  {
+    "id": "MON002",
+    "model": "LG 34WK95U-W",
+    "size": "34-inch Ultrawide",
+    "resolution": "5K2K",
+    "user": "鈴木 花子",
+    "project": "Project Titan",
+    "location": "Osaka Branch",
+    "status": "In Use"
+  },
+  {
+    "id": "MON003",
+    "model": "BenQ PD3220U",
+    "size": "32-inch",
+    "resolution": "4K",
+    "user": "高橋 一郎",
+    "project": "Internal Tools",
+    "location": "Fukuoka Branch",
+    "status": "In Use"
+  },
+  {
+    "id": "MON004",
+    "model": "Apple Studio Display",
+    "size": "27-inch",
+    "resolution": "5K",
+    "user": "渡辺 健太",
+    "project": "Marketing",
+    "location": "Sapporo R&D",
+    "status": "In Use"
+  },
+  {
+    "id": "MON005",
+    "model": "Dell U2723QE",
+    "size": "27-inch",
+    "resolution": "4K",
+    "user": "Unassigned",
+    "project": "Unassigned",
+    "location": "Tokyo HQ",
+    "status": "In Storage"
+  }
+]

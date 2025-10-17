@@ -1,0 +1,47 @@
+[
+  {
+    "id": "SP001",
+    "model": "iPhone 15 Pro",
+    "user": "佐藤 太郎",
+    "project": "Sales Team",
+    "location": "Nagoya Sales",
+    "assignedDate": "2023-09-20",
+    "status": "Active"
+  },
+  {
+    "id": "SP002",
+    "model": "Samsung Galaxy S24",
+    "user": "鈴木 花子",
+    "project": "Project Titan",
+    "location": "Osaka Branch",
+    "assignedDate": "2024-02-01",
+    "status": "Active"
+  },
+  {
+    "id": "SP003",
+    "model": "Google Pixel 8",
+    "user": "高橋 一郎",
+    "project": "Internal Tools",
+    "location": "Fukuoka Branch",
+    "assignedDate": "2023-10-15",
+    "status": "Active"
+  },
+  {
+    "id": "SP004",
+    "model": "iPhone 15",
+    "user": "田中 美咲",
+    "project": "Project Phoenix",
+    "location": "Tokyo HQ",
+    "assignedDate": "2023-09-20",
+    "status": "In Storage"
+  },
+  {
+    "id": "SP005",
+    "model": "Sony Xperia 1 V",
+    "user": "渡辺 健太",
+    "project": "Development",
+    "location": "Sapporo R&D",
+    "assignedDate": "2023-11-15",
+    "status": "Active"
+  }
+]

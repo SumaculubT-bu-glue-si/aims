@@ -1,0 +1,80 @@
+[
+  {
+    "id": "3e0e5647-43d6-4d9c-baaf-0aaeea02f052",
+    "name": "All Infrastructure",
+    "order": 0,
+    "visible": true
+  },
+  {
+    "id": "15bb95fe-7e54-41f2-a062-c79977511249",
+    "name": "Design",
+    "order": 1,
+    "visible": true
+  },
+  {
+    "id": "d490ea88-8aec-4092-b344-1c576e9c27da",
+    "name": "Design/Dev",
+    "order": 2,
+    "visible": true
+  },
+  {
+    "id": "9273eac0-430f-4629-adf2-e50f152f194d",
+    "name": "Development",
+    "order": 3,
+    "visible": true
+  },
+  {
+    "id": "02c9a5ef-c6b3-4662-981f-ed932bccb3c2",
+    "name": "Internal Tools",
+    "order": 4,
+    "visible": true
+  },
+  {
+    "id": "12b7574d-a81c-4d77-94ef-bfffebae6d7d",
+    "name": "IT",
+    "order": 5,
+    "visible": true
+  },
+  {
+    "id": "7849b706-59be-494e-8971-7471a9791c6a",
+    "name": "Marketing",
+    "order": 6,
+    "visible": true
+  },
+  {
+    "id": "5731bff9-161d-4029-a6cc-8bfc4e4f7554",
+    "name": "Marketing Analytics",
+    "order": 7,
+    "visible": true
+  },
+  {
+    "id": "a0b74701-554d-4b61-a782-da83c8ba9bbf",
+    "name": "Marketing/Design",
+    "order": 8,
+    "visible": true
+  },
+  {
+    "id": "101462ba-e59e-4129-8035-8a4d1dde23ea",
+    "name": "Project Phoenix",
+    "order": 9,
+    "visible": true
+  },
+  {
+    "id": "8443df4b-2451-40ea-a62e-f4e8a8ce602a",
+    "name": "Sales Team",
+    "order": 10,
+    "visible": true
+  },
+  {
+    "id": "80fc974c-b987-402f-9fa5-9da338e05fe4",
+    "name": "Project Titan",
+    "order": 11,
+    "visible": true
+  },
+  {
+    "id": "9094f4bc-7c06-4fc9-9931-5615c0de4512",
+    "name": "Unassigned",
+    "order": 12,
+    "visible": true
+  }
+]

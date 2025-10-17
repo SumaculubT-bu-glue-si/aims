@@ -1,0 +1,344 @@
+[
+  {
+    "id": "field_00",
+    "order": 0,
+    "systemName": "type",
+    "displayName": "タイプ",
+    "dataType": "Text",
+    "visible": true,
+    "notes": "資産の種類: pc, monitor, phone, other"
+  },
+  {
+    "id": "field_01",
+    "order": 1,
+    "systemName": "id",
+    "displayName": "管理番号",
+    "dataType": "Text",
+    "visible": true,
+    "notes": "一意の資産ID"
+  },
+  {
+    "id": "field_08",
+    "order": 2,
+    "systemName": "location",
+    "displayName": "所在",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_11",
+    "order": 3,
+    "systemName": "userId",
+    "displayName": "利用者",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_09",
+    "order": 4,
+    "systemName": "status",
+    "displayName": "状態",
+    "dataType": "Text",
+    "visible": true,
+    "notes": "例: 使用中, 保管中, 修理中, 廃棄済"
+  },
+  {
+    "id": "field_02",
+    "order": 5,
+    "systemName": "hostname",
+    "displayName": "ホスト名",
+    "dataType": "Text",
+    "visible": true,
+    "notes": "ネットワーク上のPC名"
+  },
+  {
+    "id": "field_03",
+    "order": 6,
+    "systemName": "manufacturer",
+    "displayName": "メーカー",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_04",
+    "order": 7,
+    "systemName": "model",
+    "displayName": "機種(M)",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_05",
+    "order": 8,
+    "systemName": "partNumber",
+    "displayName": "型番(P/N)",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_06",
+    "order": 9,
+    "systemName": "serialNumber",
+    "displayName": "製造番号(S/N)",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_07",
+    "order": 10,
+    "systemName": "formFactor",
+    "displayName": "形状（識別子）",
+    "dataType": "Text",
+    "visible": true,
+    "notes": "例: Laptop, Desktop"
+  },
+  {
+    "id": "field_10",
+    "order": 11,
+    "systemName": "previousUser",
+    "displayName": "旧利用者",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_12",
+    "order": 12,
+    "systemName": "os",
+    "displayName": "OS",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_13",
+    "order": 13,
+    "systemName": "osBit",
+    "displayName": "OS bit",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_14",
+    "order": 14,
+    "systemName": "officeSuite",
+    "displayName": "OFFICE",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_15",
+    "order": 15,
+    "systemName": "softwareLicenseKey",
+    "displayName": "soft key",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_16",
+    "order": 16,
+    "systemName": "wiredMacAddress",
+    "displayName": "有線（MACアドレス）",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_17",
+    "order": 17,
+    "systemName": "wiredIpAddress",
+    "displayName": "有線 IPアドレス",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_18",
+    "order": 18,
+    "systemName": "wirelessMacAddress",
+    "displayName": "無線（MACアドレス）",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_19",
+    "order": 19,
+    "systemName": "wirelessIpAddress",
+    "displayName": "無線 IPアドレス",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_20",
+    "order": 20,
+    "systemName": "usageStartDate",
+    "displayName": "利用開始日",
+    "dataType": "Date",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_21",
+    "order": 21,
+    "systemName": "usageEndDate",
+    "displayName": "利用終了日",
+    "dataType": "Date",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_22",
+    "order": 22,
+    "systemName": "carryInOutAgreement",
+    "displayName": "持出持込誓約",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_23",
+    "order": 23,
+    "systemName": "lastUpdated",
+    "displayName": "更新日",
+    "dataType": "Date",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_24",
+    "order": 24,
+    "systemName": "updatedBy",
+    "displayName": "更新者",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_25",
+    "order": 25,
+    "systemName": "notes",
+    "displayName": "備考",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_26",
+    "order": 26,
+    "systemName": "purchaseDate",
+    "displayName": "購入日",
+    "dataType": "Date",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_27",
+    "order": 27,
+    "systemName": "purchasePrice",
+    "displayName": "購入価格（税抜）",
+    "dataType": "Number",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_27b",
+    "order": 27.5,
+    "systemName": "purchasePriceTaxIncluded",
+    "displayName": "購入価格（税込）",
+    "dataType": "Number",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_28",
+    "order": 28,
+    "systemName": "depreciationYears",
+    "displayName": "償却年数",
+    "dataType": "Number",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_29",
+    "order": 29,
+    "systemName": "depreciationDept",
+    "displayName": "償却部署",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_30",
+    "order": 30,
+    "systemName": "cpu",
+    "displayName": "CPU",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_31",
+    "order": 31,
+    "systemName": "MEM",
+    "displayName": "MEM",
+    "dataType": "Text",
+    "visible": true,
+    "notes": ""
+  },
+  {
+    "id": "field_32",
+    "order": 32,
+    "systemName": "notes1",
+    "displayName": "備考1",
+    "dataType": "Text",
+    "visible": true,
+    "notes": "カスタム備考1"
+  },
+  {
+    "id": "field_33",
+    "order": 33,
+    "systemName": "notes2",
+    "displayName": "備考2",
+    "dataType": "Text",
+    "visible": true,
+    "notes": "カスタム備考2"
+  },
+  {
+    "id": "field_34",
+    "order": 34,
+    "systemName": "notes3",
+    "displayName": "備考3",
+    "dataType": "Text",
+    "visible": true,
+    "notes": "カスタム備考3"
+  },
+  {
+    "id": "field_35",
+    "order": 35,
+    "systemName": "notes4",
+    "displayName": "備考4",
+    "dataType": "Text",
+    "visible": true,
+    "notes": "カスタム備考4"
+  },
+  {
+    "id": "field_36",
+    "order": 36,
+    "systemName": "notes5",
+    "displayName": "備考5",
+    "dataType": "Text",
+    "visible": true,
+    "notes": "カスタム備考5"
+  }
+]

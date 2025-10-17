@@ -1,0 +1,38 @@
+[
+  {
+    "id": 9,
+    "name": "Fukuoka Branch",
+    "order": 0,
+    "visible": true
+  },
+  {
+    "id": 10,
+    "name": "Nagoya Sales",
+    "order": 1,
+    "visible": true
+  },
+  {
+    "id": 11,
+    "name": "Osaka Branch",
+    "order": 2,
+    "visible": true
+  },
+  {
+    "id": 12,
+    "name": "Sapporo R&D",
+    "order": 3,
+    "visible": true
+  },
+  {
+    "id": 13,
+    "name": "Tokyo HQ",
+    "order": 4,
+    "visible": true
+  },
+  {
+    "id": 14,
+    "name": "サーバ室",
+    "order": 5,
+    "visible": true
+  }
+]
