@@ -14,6 +14,13 @@
     "saving": "保存中...",
     "deleting": "削除中...",
     "cancel": "キャンセル",
+    "export": "エクスポート",
+    "exporting": "エクスポート中...",
+    "import_complete": "{{count}}件のレコードをインポートしました。",
+    "import_error": "データのインポートに失敗しました。",
+    "import_error_title": "インポートエラー（{{row}}行目）",
+    "import_error_description": "データのインポートに失敗しました：{{message}}。",
+    "import_error_row": "{{row}}行目",
     "discard_changes": "変更を破棄",
     "close": "閉じる",
     "add": "追加",
@@ -204,7 +211,8 @@
     "manage_employees": "従業員マスタ管理",
     "manage_system_users": "システムユーザー管理",
     "manage_asset_fields": "資産項目設定",
-    "data_import": "データインポート"
+    "data_import": "データインポート",
+    "activity_logs": "アクティビティログ"
   },
   "header": {
     "change_language": "言語切り替え",
@@ -400,7 +408,17 @@
       "update_success": "資産情報が正常に更新されました。",
       "update_error": "資産の更新に失敗しました。",
       "summary": "インポート結果: PC {{pcs}}台、モニター {{monitors}}台、スマートフォン {{phones}}台、その他 {{others}}台",
-      "fetch_error": "エクスポート用の資産の取得に失敗しました。"
+      "fetch_error": "エクスポート用の資産の取得に失敗しました。",
+      "export_dialog": {
+        "title": "資産データのエクスポート",
+        "description": "分析やバックアップのためにすべての資産データをCSVファイルにエクスポートします。",
+        "supported_formats": "対応形式: {{formats}}",
+        "format_description": "エクスポートされたファイルはExcelやその他のスプレッドシートアプリケーションと互換性があります。",
+        "includes": "エクスポートに含まれるもの:",
+        "all_assets": "すべての資産タイプ（PC、モニター、スマートフォン、その他）",
+        "complete_data": "すべてのフィールドを含む完全な資産情報",
+        "ordered_columns": "分析しやすいように並べられた列"
+      }
     },
     "user_assets": {
       "loading_title": "資産を読み込み中...",

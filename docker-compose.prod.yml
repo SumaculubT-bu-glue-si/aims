@@ -32,7 +32,7 @@ services:
     container_name: laravel_backend_prod
     restart: unless-stopped
     expose:
-      - "9000"
+      - "9000:9000"
     volumes:
       - ./server:/var/www/html
     depends_on:
@@ -75,7 +75,7 @@ services:
     container_name: nextjs_frontend_prod
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "3000:9002"
     volumes:
       - ./client:/app
       - node_modules_client_prod:/app/node_modules

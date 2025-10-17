@@ -18,7 +18,7 @@ export async function PUT(request: NextRequest) {
     }
 
     // Use GraphQL to update asset status
-    const graphqlUrl = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:8000/api/graphql'
+    const graphqlUrl = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'https://assetwise.glue-si.com/api/graphql'
     const mutation = `
       mutation UpdateAssetStatus($token: String!, $assetId: ID!, $status: String!, $notes: String) {
         updateAssetStatus(token: $token, assetId: $assetId, status: $status, notes: $notes) {

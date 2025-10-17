@@ -38,6 +38,13 @@
     "error": "An error occurred",
     "success": "Success",
     "info": "Info",
+    "export": "Export",
+    "exporting": "Exporting...",
+    "import_complete": "{{count}} records have been imported.",
+    "import_error": "Failed to import data.",
+    "import_error_title": "Import Error (Row {{row}})",
+    "import_error_description": "Failed to import data: {{message}}.",
+    "import_error_row": "Row {{row}}",
     "data_refreshed": "Data refreshed successfully from the server.",
     "settings": {
       "save_success": "Settings saved successfully.",
@@ -204,7 +211,8 @@
     "manage_employees": "Manage Employees",
     "manage_system_users": "Manage System Users",
     "manage_asset_fields": "Asset Display Fields",
-    "data_import": "Data Import"
+    "data_import": "Data Import",
+    "activity_logs": "Activity Logs"
   },
   "header": {
     "change_language": "Change Language",
@@ -400,7 +408,17 @@
       "update_success": "Asset information updated successfully.",
       "update_error": "Failed to update asset.",
       "summary": "Imported: {{pcs}} PCs, {{monitors}} monitors, {{phones}} phones, {{others}} others",
-      "fetch_error": "Failed to fetch assets for export. "
+      "fetch_error": "Failed to fetch assets for export. ",
+      "export_dialog": {
+        "title": "Export Assets",
+        "description": "Export all asset data to a CSV file for analysis or backup purposes.",
+        "supported_formats": "Supported formats: {{formats}}",
+        "format_description": "The exported file will be compatible with Excel and other spreadsheet applications.",
+        "includes": "Export includes:",
+        "all_assets": "All asset types (PCs, Monitors, Smartphones, Others)",
+        "complete_data": "Complete asset information with all fields",
+        "ordered_columns": "Columns ordered for easy analysis"
+      }
     },
     "user_assets": {
       "loading_title": "Loading assets...",
