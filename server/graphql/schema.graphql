@@ -5,6 +5,112 @@ scalar DateTime
 "A date string with format `Y-m-d`, e.g. `2018-05-23`."
 scalar Date @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\Date")
 
+"Authentication response type"
+type AuthResponse {
+    "JWT access token"
+    access_token: String!
+
+    "Token type (usually 'bearer')"
+    token_type: String!
+
+    "Token expiration time in seconds"
+    expires_in: Int!
+
+    "User information"
+    user: User!
+}
+
+"User type for authentication"
+type User {
+    "User ID"
+    id: ID!
+
+    "User name"
+    name: String!
+
+    "User email"
+    email: String!
+
+    "Email verification status"
+    email_verified_at: DateTime
+
+    "Account creation date"
+    created_at: DateTime!
+
+    "Last update date"
+    updated_at: DateTime!
+}
+
+"Activity log entry type"
+type ActivityLog {
+    "Activity log ID"
+    id: ID!
+
+    "User who performed the action"
+    user: User!
+
+    "Action performed (e.g., 'login', 'create_employee', 'update_asset')"
+    action: String!
+
+    "Description of the action"
+    description: String!
+
+    "IP address of the user"
+    ip_address: String
+
+    "User agent string"
+    user_agent: String
+
+    "Additional metadata (JSON)"
+    metadata: String
+        @field(resolver: "Bu\\Server\\Models\\ActivityLog@getMetadataField")
+
+    "Activity timestamp"
+    created_at: DateTime!
+}
+
+"Activity log input type"
+input ActivityLogInput {
+    "Action performed"
+    action: String! @rules(apply: ["required", "string", "max:255"])
+
+    "Description of the action"
+    description: String! @rules(apply: ["required", "string", "max:1000"])
+
+    "IP address of the user"
+    ip_address: String @rules(apply: ["string", "max:45"])
+
+    "User agent string"
+    user_agent: String @rules(apply: ["string", "max:500"])
+
+    "Additional metadata (JSON)"
+    metadata: String @rules(apply: ["string", "max:2000"])
+}
+
+"Activity logs response type"
+type ActivityLogsResponse {
+    "List of activity logs"
+    data: [ActivityLog!]!
+
+    "Pagination information"
+    paginatorInfo: PaginatorInfo!
+}
+
+"Pagination information"
+type PaginatorInfo {
+    "Current page number"
+    currentPage: Int!
+
+    "Last page number"
+    lastPage: Int!
+
+    "Total number of items"
+    total: Int!
+
+    "Whether there are more pages"
+    hasMorePages: Boolean!
+}
+
 "Response type for Google Workspace user list query"
 type GoogleWorkspaceUserResponse {
     "List of users from Google Workspace"
@@ -105,11 +211,11 @@ type Query {
     users(
         "Filters by name. Accepts SQL LIKE wildcards `%` and `_`."
         name: String @where(operator: "like")
-    ): [User!]! @paginate(defaultCount: 10)
+    ): [User!]! @paginate(defaultCount: 10) @guard
 
     # Asset queries
     "Find a single asset by ID."
-    asset(id: ID! @eq): Asset @find
+    asset(id: ID! @eq): Asset @find @guard
 
     "List multiple assets with optional filtering."
     assets(
@@ -181,6 +287,7 @@ type Query {
     "List multiple employees with optional filtering."
     employees(name: String @where(operator: "like")): [Employee!]!
         @paginate(defaultCount: 20)
+        @guard
 
     # Project queries
     "Find a single project by ID."
@@ -189,6 +296,7 @@ type Query {
     "List multiple projects with optional filtering."
     projects(name: String @where(operator: "like")): [Project!]!
         @paginate(defaultCount: 20)
+        @guard
 
     # Location queries
     "Find a single location by ID."
@@ -196,6 +304,7 @@ type Query {
         @field(
             resolver: "Bu\\Server\\GraphQL\\Queries\\LocationQueries@location"
         )
+        @guard
 
     "List multiple locations with optional filtering."
     locations(
@@ -206,16 +315,17 @@ type Query {
         @field(
             resolver: "Bu\\Server\\GraphQL\\Queries\\LocationQueries@locations"
         )
+        @guard
 
     # Audit queries
     "Find a single audit plan by ID."
-    auditPlan(id: ID! @eq): AuditPlan @find
+    auditPlan(id: ID! @eq): AuditPlan @find @guard
 
     "List multiple audit plans with optional filtering."
     auditPlans(
         status: String @where(operator: "=")
         created_by: ID @where(operator: "=")
-    ): [AuditPlan!]! @paginate(defaultCount: 20)
+    ): [AuditPlan!]! @paginate(defaultCount: 20) @guard
 
     "Find audit assets for a specific audit plan."
     auditAssets(
@@ -289,6 +399,30 @@ type Query {
         @field(
             resolver: "Bu\\Server\\GraphQL\\Queries\\EmployeeAuditQueries@getAuditAssetDetails"
         )
+
+    # Activity Log queries
+    "Get activity logs with optional filtering."
+    activityLogs(
+        "Filter by user ID"
+        user_id: ID
+        "Filter by action"
+        action: String
+        "Filter by date range (start)"
+        date_from: Date
+        "Filter by date range (end)"
+        date_to: Date
+        "Pagination - number of items per page"
+        first: Int = 50
+        "Pagination - page number"
+        page: Int = 1
+    ): ActivityLogsResponse!
+        @field(
+            resolver: "Bu\\Server\\GraphQL\\Queries\\ActivityLogQueries@getActivityLogs"
+        )
+        @guard
+
+    "Get a single activity log by ID."
+    activityLog(id: ID! @eq): ActivityLog @find @guard
 }
 
 "Account of a person who uses this application."
@@ -1576,18 +1710,31 @@ input CorrectiveActionInput {
 
 "Indicates what fields are available at the top level of a mutation operation."
 type Mutation {
+    # Authentication mutations
+    "Login with email and password"
+    login(email: String!, password: String!): AuthResponse!
+        @field(resolver: "Bu\\Server\\GraphQL\\Mutations\\AuthMutations@login")
+
+    "Logout the current user"
+    logout: Boolean!
+        @field(resolver: "Bu\\Server\\GraphQL\\Mutations\\AuthMutations@logout")
+        @guard
+
     # User mutations
     "Create a new user."
     createUser(user: UserInput!): User!
         @field(resolver: "Bu\\Server\\GraphQL\\Mutations\\UserMutations@create")
+        @guard
 
     "Update an existing user."
     updateUser(id: ID!, user: UserInput!): User!
         @field(resolver: "Bu\\Server\\GraphQL\\Mutations\\UserMutations@update")
+        @guard
 
     "Delete a user."
     deleteUser(id: ID!): Boolean!
         @field(resolver: "Bu\\Server\\GraphQL\\Mutations\\UserMutations@delete")
+        @guard
 
     # Asset mutations
     "Create or update a single asset by asset_id."
@@ -1595,18 +1742,21 @@ type Mutation {
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\AssetMutations@upsertAsset"
         )
+        @guard
 
     "Create or update many assets by asset_id. Returns the upserted assets."
     bulkUpsertAssets(assets: [AssetInput!]!): [Asset!]!
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\AssetMutations@bulkUpsertAssets"
         )
+        @guard
 
     "Delete an asset by asset_id. Returns true if deleted or did not exist."
     deleteAsset(asset_id: String!): Boolean!
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\AssetMutations@deleteAsset"
         )
+        @guard
 
     # Employee mutations
     "Create a new employee."
@@ -1614,30 +1764,35 @@ type Mutation {
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\EmployeeMutations@create"
         )
+        @guard
 
     "Update an existing employee."
     updateEmployee(id: ID!, employee: EmployeeInput!): Employee!
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\EmployeeMutations@update"
         )
+        @guard
 
     "Delete an employee."
     deleteEmployee(id: ID!): Boolean!
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\EmployeeMutations@delete"
         )
+        @guard
 
     "Create or update an employee (upsert)."
     upsertEmployee(employee: EmployeeInput!): Employee!
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\EmployeeMutations@upsertEmployee"
         )
+        @guard
 
     "Create or update many employees (bulk upsert)."
     bulkUpsertEmployees(employees: [EmployeeInput!]!): [Employee!]!
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\EmployeeMutations@bulkUpsertEmployees"
         )
+        @guard
 
     # Project mutations
     "Create a new project."
@@ -1645,30 +1800,35 @@ type Mutation {
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\ProjectMutations@create"
         )
+        @guard
 
     "Update an existing project."
     updateProject(id: ID!, project: ProjectInput!): Project!
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\ProjectMutations@update"
         )
+        @guard
 
     "Delete a project."
     deleteProject(id: ID!): Boolean!
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\ProjectMutations@delete"
         )
+        @guard
 
     "Create or update a project (upsert)."
     upsertProject(project: ProjectInput!): Project!
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\ProjectMutations@upsertProject"
         )
+        @guard
 
     "Create or update many projects (bulk upsert)."
     bulkUpsertProjects(projects: [ProjectInput!]!): [Project!]!
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\ProjectMutations@bulkUpsertProjects"
         )
+        @guard
 
     # Location mutations
     "Create a new location."
@@ -1676,24 +1836,28 @@ type Mutation {
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\LocationMutations@create"
         )
+        @guard
 
     "Update an existing location."
     updateLocation(id: ID!, location: LocationInput!): Location!
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\LocationMutations@update"
         )
+        @guard
 
     "Delete a location."
     deleteLocation(id: ID!): Boolean!
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\LocationMutations@delete"
         )
+        @guard
 
     "Create or update a location (upsert)."
     upsertLocation(location: LocationInput!): Location!
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\LocationMutations@upsertLocation"
         )
+        @guard
 
     # Audit mutations
     "Create a new audit plan."
@@ -1706,6 +1870,7 @@ type Mutation {
         auditors: [ID!]!
     ): AuditPlan!
         @field(resolver: "Bu\\Server\\GraphQL\\Mutations\\CreateAuditPlan")
+        @guard
 
     "Update an existing audit plan."
     updateAuditPlan(
@@ -1718,6 +1883,7 @@ type Mutation {
         description: String
     ): AuditPlan!
         @field(resolver: "Bu\\Server\\GraphQL\\Mutations\\UpdateAuditPlan")
+        @guard
 
     "Update audit asset status."
     updateAuditAsset(
@@ -1726,7 +1892,7 @@ type Mutation {
             @rules(
                 apply: [
                     "required"
-                    "in:??,???,??,??(???),???,???,???,???,????,Pending,Found,In Storage,Broken,Missing,Scheduled for Disposal"
+                    "in:欠落,返却済,廃止,保管(使用無),利用中,保管中,貸出中,故障中,利用予約,Pending,Found,In Storage,Broken,Missing,Scheduled for Disposal"
                 ]
             )
         auditor_notes: String
@@ -1735,6 +1901,7 @@ type Mutation {
         current_user: String
     ): AuditAsset!
         @field(resolver: "Bu\\Server\\GraphQL\\Mutations\\UpdateAuditAsset")
+        @guard
 
     "Complete an audit assignment."
     completeAuditAssignment(
@@ -1746,6 +1913,7 @@ type Mutation {
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\UpdateAuditAssignment"
         )
+        @guard
 
     # Corrective Action mutations
     "Create a new corrective action."
@@ -1753,6 +1921,7 @@ type Mutation {
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\CorrectiveActionMutations@create"
         )
+        @guard
 
     "Update an existing corrective action."
     updateCorrectiveAction(
@@ -1762,6 +1931,7 @@ type Mutation {
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\CorrectiveActionMutations@update"
         )
+        @guard
 
     "Update the status of a corrective action."
     updateCorrectiveActionStatus(
@@ -1775,6 +1945,7 @@ type Mutation {
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\CorrectiveActionMutations@updateStatus"
         )
+        @guard
 
     "Delete a corrective action."
     deleteCorrectiveAction(
@@ -1783,6 +1954,7 @@ type Mutation {
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\CorrectiveActionMutations@delete"
         )
+        @guard
 
     # Corrective Action Assignment mutations
     "Assign a corrective action to an employee."
@@ -1796,6 +1968,7 @@ type Mutation {
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\CorrectiveActionAssignmentMutations@assign"
         )
+        @guard
 
     "Update the status of a corrective action assignment."
     updateCorrectiveActionAssignmentStatus(
@@ -1812,6 +1985,7 @@ type Mutation {
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\CorrectiveActionAssignmentMutations@updateStatus"
         )
+        @guard
 
     "Update the status of a corrective action for an employee."
     updateEmployeeCorrectiveActionStatus(
@@ -1833,7 +2007,7 @@ type Mutation {
             @rules(
                 apply: [
                     "required"
-                    "in:??,???,??,??(???),???,???,???,???,????,Missing,Returned,Abolished,Stored - Not in Use,In Use,In Storage,On Loan,Broken,Reserved for Use"
+                    "in:欠落,返却済,廃止,保管(使用無),利用中,保管中,貸出中,故障中,利用予約,Missing,Returned,Abolished,Stored - Not in Use,In Use,In Storage,On Loan,Broken,Reserved for Use"
                 ]
             )
         notes: String
@@ -1848,6 +2022,7 @@ type Mutation {
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\EmployeeAuditMutations@sendScheduledReminders"
         )
+        @guard
 
     "Send manual reminders for specific corrective actions."
     sendManualReminders(
@@ -1856,6 +2031,7 @@ type Mutation {
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\EmployeeAuditMutations@sendManualReminders"
         )
+        @guard
 
     # Employee Audit mutations
     "Request access to an audit plan for an employee."
@@ -1866,4 +2042,29 @@ type Mutation {
         @field(
             resolver: "Bu\\Server\\GraphQL\\Mutations\\EmployeeAuditMutations@requestAccess"
         )
+
+    # Activity Log mutations
+    "Create a new activity log entry."
+    createActivityLog(
+        "Activity log data"
+        input: ActivityLogInput!
+    ): ActivityLog!
+        @field(
+            resolver: "Bu\\Server\\GraphQL\\Mutations\\ActivityLogMutations@create"
+        )
+        @guard
+
+    "Log user activity (convenience method)."
+    logActivity(
+        "Action performed"
+        action: String! @rules(apply: ["required", "string", "max:255"])
+        "Description of the action"
+        description: String! @rules(apply: ["required", "string", "max:1000"])
+        "Additional metadata (JSON)"
+        metadata: String @rules(apply: ["string", "max:2000"])
+    ): ActivityLog!
+        @field(
+            resolver: "Bu\\Server\\GraphQL\\Mutations\\ActivityLogMutations@logActivity"
+        )
+        @guard
 }
