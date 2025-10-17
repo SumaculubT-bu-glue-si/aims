@@ -17,10 +17,11 @@
     ],  
     "require": {
         "php": "^8.2",
+        "bu/gws": "dev-main",
+        "bu/server": "dev-main",
         "laravel/framework": "^12.0",
         "laravel/tinker": "^2.10.1",
-        "bu/server": "dev-main",
-        "bu/gws": "dev-main"
+        "tymon/jwt-auth": "^2.2"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

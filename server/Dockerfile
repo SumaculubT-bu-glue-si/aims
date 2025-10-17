@@ -1,5 +1,5 @@
 # Use PHP 8.2 CLI for running Artisan commands (OK for development)
-FROM php:8.2-cli
+FROM php:8.3-cli
 
 # Set working directory
 WORKDIR /var/www/html

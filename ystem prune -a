@@ -1,0 +1,23 @@
+[0;1;32m●[0m docker.service - Docker Application Container Engine
+     Loaded: loaded (]8;;file://x162-43-87-198/usr/lib/systemd/system/docker.service\/usr/lib/systemd/system/docker.service]8;;\; [0;1;32menabled[0m; preset: [0;1;32menabled[0m)
+     Active: [0;1;32mactive (running)[0m since Fri 2025-10-17 10:33:15 JST; 4s ago
+ Invocation: 9d118f510e9744b39939580446d3460f
+TriggeredBy: [0;1;32m●[0m docker.socket
+       Docs: ]8;;https://docs.docker.com\https://docs.docker.com]8;;\
+   Main PID: 505406 (dockerd)
+      Tasks: 10
+     Memory: 26M (peak: 26.7M)
+        CPU: 629ms
+     CGroup: /system.slice/docker.service
+             └─[0;38;5;245m505406 /usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock[0m
+
+10月 17 10:33:13 x162-43-87-198 dockerd[505406]: time="2025-10-17T10:33:13.629130243+09:00" level=info msg="OTEL tracing is not configured, using no-op tracer provider"
+10月 17 10:33:13 x162-43-87-198 dockerd[505406]: time="2025-10-17T10:33:13.629370925+09:00" level=info msg="detected 127.0.0.53 nameserver, assuming systemd-resolved, so using resolv.conf: /run/systemd/resolve/resolv.conf"
+10月 17 10:33:13 x162-43-87-198 dockerd[505406]: time="2025-10-17T10:33:13.746368234+09:00" level=info msg="[graphdriver] using prior storage driver: overlay2"
+10月 17 10:33:13 x162-43-87-198 dockerd[505406]: time="2025-10-17T10:33:13.807112051+09:00" level=info msg="Loading containers: start."
+10月 17 10:33:14 x162-43-87-198 dockerd[505406]: time="2025-10-17T10:33:14.876755901+09:00" level=info msg="Default bridge (docker0) is assigned with an IP address 172.17.0.0/16. Daemon option --bip can be used to set a preferred IP address"
+10月 17 10:33:15 x162-43-87-198 dockerd[505406]: time="2025-10-17T10:33:15.012542178+09:00" level=info msg="Loading containers: done."
+10月 17 10:33:15 x162-43-87-198 dockerd[505406]: time="2025-10-17T10:33:15.026384031+09:00" level=info msg="Docker daemon" commit=27.5.1-0ubuntu3 containerd-snapshotter=false storage-driver=overlay2 version=27.5.1
+10月 17 10:33:15 x162-43-87-198 dockerd[505406]: time="2025-10-17T10:33:15.026545284+09:00" level=info msg="Daemon has completed initialization"
+10月 17 10:33:15 x162-43-87-198 dockerd[505406]: time="2025-10-17T10:33:15.252833771+09:00" level=info msg="API listen on /run/docker.sock"
+10月 17 10:33:15 x162-43-87-198 systemd[1]: Started docker.service - Docker Application Container Engine.
