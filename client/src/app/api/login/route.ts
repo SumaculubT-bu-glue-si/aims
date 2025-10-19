@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
     const cookieResponse = NextResponse.json(
       { 
         success: true, 
+        access_token: access_token, // Include token for client-side storage
         user: {
           id: user.id,
           name: user.name,

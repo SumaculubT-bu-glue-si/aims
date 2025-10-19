@@ -35,11 +35,23 @@ export async function graphqlQuery<T = any>(
   try {
     const isClient = typeof window !== 'undefined';
     
+    // Get the auth token from localStorage
+    let authToken = '';
+    if (isClient) {
+      authToken = localStorage.getItem('auth_token') || '';
+      if (authToken) {
+        console.log('GraphQL: Using auth token from localStorage');
+      } else {
+        console.log('GraphQL: No auth token found in localStorage');
+      }
+    }
+    
     const response = await fetch(GRAPHQL_ENDPOINT, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
+        ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
         ...(isClient ? {} : { 'X-Requested-With': 'XMLHttpRequest' }),
       },
       credentials: isClient ? 'include' : 'same-origin',

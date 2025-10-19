@@ -122,6 +122,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await response.json();
 
       if (response.ok && result.success) {
+        // Store JWT token in localStorage for GraphQL requests
+        if (result.access_token) {
+          localStorage.setItem('auth_token', result.access_token);
+        }
+        
         // Create user objects for compatibility
         const authUser: AuthUser = {
           uid: result.user.id,
@@ -200,6 +205,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           'Content-Type': 'application/json',
         },
       });
+      
+      // Clear JWT token from localStorage
+      localStorage.removeItem('auth_token');
       
       setUser(null);
       setAppUser(null);

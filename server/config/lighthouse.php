@@ -39,9 +39,8 @@ return [
             // Always set the `Accept: application/json` header.
             Nuwave\Lighthouse\Http\Middleware\AcceptJson::class,
 
-            // Logs in a user if they are authenticated. In contrast to Laravel's 'auth'
-            // middleware, this delegates auth and permission checks to the field level.
-            Nuwave\Lighthouse\Http\Middleware\AttemptAuthentication::class,
+            // Custom JWT authentication middleware for GraphQL
+            \App\Http\Middleware\GraphQLJWTAuth::class,
 
             // Logs every incoming GraphQL query.
             // Nuwave\Lighthouse\Http\Middleware\LogGraphQLQueries::class,
@@ -95,7 +94,7 @@ return [
         /*
          * Setting to true enables schema caching.
          */
-        'enable' => env('LIGHTHOUSE_SCHEMA_CACHE_ENABLE', env('APP_ENV') !== 'local'),
+        'enable' => env('LIGHTHOUSE_SCHEMA_CACHE_ENABLE', false),
 
         /*
          * File path to store the lighthouse schema.
@@ -126,7 +125,7 @@ return [
         /*
          * Setting to true enables query caching.
          */
-        'enable' => env('LIGHTHOUSE_QUERY_CACHE_ENABLE', true),
+        'enable' => env('LIGHTHOUSE_QUERY_CACHE_ENABLE', false),
 
         /*
          * Allows using a specific cache store, uses the app's default if set to null.

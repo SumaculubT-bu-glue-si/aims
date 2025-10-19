@@ -1713,11 +1713,11 @@ type Mutation {
     # Authentication mutations
     "Login with email and password"
     login(email: String!, password: String!): AuthResponse!
-        @field(resolver: "Bu\\Server\\GraphQL\\Mutations\\AuthMutations@login")
+        @field(resolver: "App\\GraphQL\\Mutations\\AuthMutations@login")
 
     "Logout the current user"
     logout: Boolean!
-        @field(resolver: "Bu\\Server\\GraphQL\\Mutations\\AuthMutations@logout")
+        @field(resolver: "App\\GraphQL\\Mutations\\AuthMutations@logout")
 
     # User mutations
     "Create a new user."

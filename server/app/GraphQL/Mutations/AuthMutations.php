@@ -3,7 +3,7 @@
 namespace App\GraphQL\Mutations;
 
 use App\Models\User;
-use App\Models\ActivityLog;
+use Bu\Server\Models\ActivityLog;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Tymon\JWTAuth\Facades\JWTAuth;
@@ -43,18 +43,23 @@ class AuthMutations
             // Get token expiration time (default to 1 hour if not available)
             $expiresIn = 3600; // 1 hour in seconds
 
-            // Log successful login
-            ActivityLog::create([
-                'user_id' => $user->id,
-                'action' => 'login',
-                'description' => 'User logged in successfully',
-                'ip_address' => request()->ip(),
-                'user_agent' => request()->userAgent(),
-                'metadata' => [
-                    'login_method' => 'email_password',
-                    'timestamp' => now()->toISOString(),
-                ],
-            ]);
+            // Log successful login (with error handling)
+            try {
+                ActivityLog::create([
+                    'user_id' => $user->id,
+                    'action' => 'login',
+                    'description' => 'User logged in successfully',
+                    'ip_address' => request()->ip(),
+                    'user_agent' => request()->userAgent(),
+                    'metadata' => [
+                        'login_method' => 'email_password',
+                        'timestamp' => now()->toISOString(),
+                    ],
+                ]);
+            } catch (\Exception $e) {
+                // Log the error but don't fail the login
+                \Log::error('Failed to create activity log: ' . $e->getMessage());
+            }
 
             return [
                 'access_token' => $token,
