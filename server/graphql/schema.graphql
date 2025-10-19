@@ -1718,7 +1718,6 @@ type Mutation {
     "Logout the current user"
     logout: Boolean!
         @field(resolver: "Bu\\Server\\GraphQL\\Mutations\\AuthMutations@logout")
-        @guard
 
     # User mutations
     "Create a new user."
