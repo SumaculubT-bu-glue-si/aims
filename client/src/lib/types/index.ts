@@ -6,7 +6,7 @@
 // ============================================================================
 
 export type AssetType = 'pc' | 'monitor' | 'phone' | 'other';
-export type AssetStatus = '利用中' | '保管中' | '故障中' | '返却済' | '廃止' | '貸出中' | '利用予約' | '保管(使用無)';
+export type AssetStatus = '???' | '???' | '???' | '???' | '??' | '???' | '????' | '??(???)';
 export type EntityStatus = 'active' | 'inactive';
 export type SortDirection = 'asc' | 'desc';
 
@@ -679,22 +679,40 @@ export interface AssignedUser {
   assignedDate: string; // ISO date string
 }
 
+export interface License {
+  id: string;
+  account_id: string;
+  unit_price: number;
+  currency: 'jpy' | 'usd';
+  billing_cycle: number;
+  billing_interval: 'day' | 'week' | 'month' | 'year';
+  start_date: Date | null;
+  end_date: Date | null;
+  renewal_date: Date | null;
+  version: string | null;
+  license_key: string | null;
+  assigned_employee: Employee | null;
+  used: boolean;
+}
+
 export interface Subscription {
   id: string;
-  name: string;
+  service_name: string;
   status: SubscriptionStatus;
-  licenseType: LicenseType;
-  pricingType: PricingType;
-  accounts: Account[];
-  assignedUsers?: AssignedUser[];
-  perUserPricing?: PerUserPricing;
-  vendor?: string;
-  category?: string;
-  paymentMethod?: string;
-  website?: string;
-  supportPage?: string;
-  notes?: string;
-  cancellationDate?: string;
+  pricing_type: PricingType;
+  license_type: LicenseType;
+  licenses: License[];
+  employees: Employee[];
+  vendor: string | null;
+  category: string | null;
+  payment_method: string | null;
+  cancellation_date: Date | null;
+  official_website: string | null;
+  official_support: string | null;
+  notes: string | null;
+  per_seat_monthly_price: number | null;
+  per_seat_yearly_price: number | null;
+  per_seat_currency: 'jpy' | 'usd';
 }
 
 export interface GWS {

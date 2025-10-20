@@ -822,10 +822,6 @@ export async function createAuditPlan(auditPlanData: {
     }
   `;
 
-  console.log('?? Creating audit plan with data:', auditPlanData);
-  console.log('?? Using GraphQL endpoint:', GRAPHQL_ENDPOINT);
-  console.log('?? Mutation:', mutation);
-
   try {
     const requestBody = {
       query: mutation,
@@ -839,7 +835,7 @@ export async function createAuditPlan(auditPlanData: {
       },
     };
 
-    console.log('?? Request body:', JSON.stringify(requestBody, null, 2));
+    console.log(' Request body:', JSON.stringify(requestBody, null, 2));
 
     const response = await fetch(GRAPHQL_ENDPOINT, {
       method: 'POST',
@@ -851,34 +847,34 @@ export async function createAuditPlan(auditPlanData: {
       body: JSON.stringify(requestBody),
     });
 
-    console.log('?? Response status:', response.status);
-    console.log('?? Response headers:', Object.fromEntries(response.headers.entries()));
+    console.log('Response status:', response.status);
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
     const responseText = await response.text();
-    console.log('?? Response text (first 500 chars):', responseText.substring(0, 500));
+    console.log('Response text (first 500 chars):', responseText.substring(0, 500));
 
     let result;
     try {
       result = JSON.parse(responseText);
-      console.log('? Response parsed as JSON successfully');
+      console.log('Response parsed as JSON successfully');
     } catch (parseError) {
-      console.error('? Failed to parse response as JSON:', parseError);
-      console.error('? Response text:', responseText);
+      console.error('Failed to parse response as JSON:', parseError);
+      console.error('Response text:', responseText);
       throw new Error(`Invalid JSON response: ${responseText.substring(0, 200)}`);
     }
 
     if (result.errors) {
-      console.error('? GraphQL errors:', result.errors);
+      console.error('GraphQL errors:', result.errors);
       throw new Error(result.errors[0]?.message || 'Failed to create audit plan');
     }
 
-    console.log('? Audit plan created successfully:', result.data);
+    console.log('Audit plan created successfully:', result.data);
     return { success: true, data: result.data.createAuditPlan };
   } catch (error) {
-    console.error('? Error creating audit plan:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to create audit plan' 
+    console.error('Error creating audit plan:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to create audit plan'
     };
   }
 }
@@ -1749,7 +1745,16 @@ export async function getEmployeeCorrectiveActions(employeeId: string, auditPlan
     };
   }
 }
-  
+
+const toDateString = (d?: Date) => {
+  if (!d) return null;
+  d = new Date(d);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export async function createSubscription(
   subscriptionData: {
     serviceName: string;
@@ -1800,8 +1805,6 @@ export async function createSubscription(
     }
   `;
 
-  const toDateString = (d?: Date) => d ? d.toISOString().split("T")[0] : null;
-
   const transformedData = {
     service_name: subscriptionData.serviceName,
     vendor: subscriptionData.vendor,
@@ -1845,11 +1848,11 @@ export async function createSubscription(
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      body: JSON.stringify({ 
-        query: mutation, 
-        variables: { 
+      body: JSON.stringify({
+        query: mutation,
+        variables: {
           subscriptionData: transformedData
-        } 
+        }
       }),
     });
 
@@ -2063,9 +2066,6 @@ export async function updateSubscription(id: string, subscriptionData: any) {
       }
     }
   `;
-
-  // Transform data to match the GraphQL input structure (snake_case)
-  const toDateString = (d?: Date) => d ? d.toISOString().split("T")[0] : null;
 
   const transformedData = {
     service_name: subscriptionData.serviceName,

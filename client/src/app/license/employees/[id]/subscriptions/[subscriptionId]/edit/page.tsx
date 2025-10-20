@@ -126,9 +126,24 @@ export default function EditEmployeeSubscriptionPage() {
     const handleSave = async (data: FormValues) => {
         if (!subscription) return;
         if (subscription.pricing_type === 'per-license' && accountId) {
-            const target = (subscription.licenses || []).find((a: any) => a.account_id === accountId);
-
-            const toDate = (s?: string | null) => (s ? new Date(s) : undefined);
+            const allLicenses = (subscription.licenses || []).map((lic: any) => {
+                const isTarget = lic.account_id === accountId;
+                return {
+                    id: lic.id,
+                    accountId: lic.account_id,
+                    unitPrice: lic.unit_price,
+                    currency: lic.currency,
+                    billingCycle: lic.billing_cycle,
+                    billingInterval: lic.billing_interval,
+                    startDate: lic.start_date,
+                    endDate: isTarget ? (data.endDate ? new Date(data.endDate) : lic.end_date) : lic.end_date,
+                    renewalDate: isTarget ? (data.renewalDate ? new Date(data.renewalDate) : lic.renewal_date) : lic.renewal_date,
+                    version: lic.version,
+                    licenseKey: lic.license_key,
+                    used: lic.used,
+                    assignedEmployee: lic.assigned_employee ? { employee_id: lic.assigned_employee.employee_id } : undefined,
+                };
+            });
 
             const subscriptionData: any = {
                 serviceName: subscription.service_name,
@@ -138,30 +153,14 @@ export default function EditEmployeeSubscriptionPage() {
                 status: subscription.status,
                 category: subscription.category,
                 paymentMethod: subscription.payment_method,
-                cancellationDate: toDate(subscription.cancellation_date || undefined),
+                cancellationDate: subscription.cancellation_date,
                 officialWebsite: subscription.official_website,
                 officialSupport: subscription.official_support,
                 notes: subscription.notes,
                 perSeatMonthlyPrice: subscription.per_seat_monthly_price ?? undefined,
                 perSeatYearlyPrice: subscription.per_seat_yearly_price ?? undefined,
                 perSeatCurrency: subscription.per_seat_currency ?? undefined,
-                licenses: [
-                    {
-                        id: target?.id,
-                        accountId: target?.account_id,
-                        unitPrice: target?.unit_price,
-                        currency: target?.currency,
-                        billingCycle: target?.billing_cycle,
-                        billingInterval: target?.billing_interval,
-                        startDate: toDate(target?.start_date || null),
-                        endDate: data.endDate ? new Date(data.endDate) : toDate(target?.end_date || null),
-                        renewalDate: data.renewalDate ? new Date(data.renewalDate) : toDate(target?.renewal_date || null),
-                        version: target?.version,
-                        licenseKey: target?.license_key,
-                        used: target?.used,
-                        assignedEmployee: target?.assigned_employee ? { employee_id: target.assigned_employee.employee_id } : undefined,
-                    },
-                ],
+                licenses: allLicenses,
             };
             await updateSubscription(subscriptionId, subscriptionData);
         } else if (subscription.pricing_type === 'per-seat') {
@@ -173,7 +172,12 @@ export default function EditEmployeeSubscriptionPage() {
         try {
             toast({ title: 'Updated', description: 'Subscription updated successfully' });
         } catch { }
-        router.push(`/license/employees/${employeeId}`);
+        const redirect = searchParams.get('redirect');
+        if (redirect) {
+            router.push(redirect);
+        } else {
+            router.push(`/license/employees/${employeeId}`);
+        }
     };
 
     const handleUnassign = () => {
@@ -184,9 +188,24 @@ export default function EditEmployeeSubscriptionPage() {
     const confirmUnassign = async () => {
         if (!subscription) return;
         if (subscription.pricing_type === 'per-license' && accountId) {
-            const target = (subscription.licenses || []).find((a: any) => a.account_id === accountId);
-
-            const toDate = (s?: string | null) => (s ? new Date(s) : undefined);
+            const allLicenses = (subscription.licenses || []).map((lic: any) => {
+                const isTarget = lic.account_id === accountId;
+                return {
+                    id: lic.id,
+                    accountId: lic.account_id,
+                    unitPrice: lic.unit_price,
+                    currency: lic.currency,
+                    billingCycle: lic.billing_cycle,
+                    billingInterval: lic.billing_interval,
+                    startDate: lic.start_date,
+                    endDate: lic.end_date,
+                    renewalDate: lic.renewal_date,
+                    version: lic.version,
+                    licenseKey: lic.license_key,
+                    used: lic.used,
+                    assignedEmployee: isTarget ? undefined : (lic.assigned_employee ? { employee_id: lic.assigned_employee.employee_id } : undefined),
+                };
+            });
 
             const subscriptionData: any = {
                 serviceName: subscription.service_name,
@@ -196,30 +215,14 @@ export default function EditEmployeeSubscriptionPage() {
                 status: subscription.status,
                 category: subscription.category,
                 paymentMethod: subscription.payment_method,
-                cancellationDate: toDate(subscription.cancellation_date || undefined),
+                cancellationDate: subscription.cancellation_date,
                 officialWebsite: subscription.official_website,
                 officialSupport: subscription.official_support,
                 notes: subscription.notes,
                 perSeatMonthlyPrice: subscription.per_seat_monthly_price ?? undefined,
                 perSeatYearlyPrice: subscription.per_seat_yearly_price ?? undefined,
                 perSeatCurrency: subscription.per_seat_currency ?? undefined,
-                licenses: [
-                    {
-                        id: target?.id,
-                        accountId: target?.account_id,
-                        unitPrice: target?.unit_price,
-                        currency: target?.currency,
-                        billingCycle: target?.billing_cycle,
-                        billingInterval: target?.billing_interval,
-                        startDate: toDate(target?.start_date || null),
-                        endDate: toDate(target?.end_date || null),
-                        renewalDate: toDate(target?.renewal_date || null),
-                        version: target?.version,
-                        licenseKey: target?.license_key,
-                        used: target?.used,
-                        assignedEmployee: undefined,
-                    },
-                ],
+                licenses: allLicenses,
             };
             await updateSubscription(subscriptionId, subscriptionData);
         }
@@ -228,7 +231,12 @@ export default function EditEmployeeSubscriptionPage() {
             sessionStorage.setItem('flash_unassign_message', 'Subscription unassigned successfully');
         } catch { }
         setIsUnassignDialogOpen(false);
-        router.push(`/license/employees/${employeeId}`);
+        const redirect = searchParams.get('redirect');
+        if (redirect) {
+            router.push(redirect);
+        } else {
+            router.push(`/license/employees/${employeeId}`);
+        }
     }
 
 
@@ -371,7 +379,14 @@ export default function EditEmployeeSubscriptionPage() {
                             </Dialog>
                         </>
                         <div className="flex gap-2">
-                            <Button type="button" variant="outline" onClick={() => router.back()}>
+                            <Button type="button" variant="outline" onClick={() => {
+                                const redirect = searchParams.get('redirect');
+                                if (redirect) {
+                                    router.push(redirect);
+                                } else {
+                                    router.back();
+                                }
+                            }}>
                                 Cancel
                             </Button>
                             <Button type="submit" disabled={form.formState.isSubmitting}>

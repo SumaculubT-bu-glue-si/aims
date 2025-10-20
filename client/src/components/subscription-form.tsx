@@ -27,9 +27,9 @@ const licenseSchema = z.object({
     currency: z.enum(['JPY', 'USD']),
     billingCycle: z.coerce.number().int().min(1, 'Period must be at least 1').optional(),
     billingInterval: z.enum(['day', 'week', 'month', 'year']).optional(),
-    startDate: z.string().min(1, 'Start date is required'),
-    endDate: z.string().optional(),
-    renewalDate: z.string().optional(),
+    startDate: z.date().optional(),
+    endDate: z.date().optional(),
+    renewalDate: z.date().optional(),
     version: z.string().optional(),
     licenseKey: z.string().optional(),
     used: z.boolean().optional(),
@@ -64,7 +64,7 @@ const subscriptionSchema = z.object({
     // assignedUsers: z.array(assignedUserSchema).optional(),
     perSeatMonthlyPrice: z.coerce.number().optional(),
     perSeatYearlyPrice: z.coerce.number().optional(),
-    perSeatCurrency: z.enum(['jpy', 'usd']).optional(),
+    perSeatCurrency: z.enum(['JPY', 'USD']).optional(),
 });
 
 type SubscriptionFormValues = z.infer<typeof subscriptionSchema>;
@@ -342,7 +342,6 @@ function PricingTypeFields({ control }: { control: any }) {
 
 import React, { useState } from 'react';
 import { toast } from '@/hooks/use-toast';
-import { Subscription } from '@/lib/types';
 
 export default function SubscriptionForm({ onSave, onCancel, mode, subscriptionId, initialData, data }: SubscriptionFormProps) {
     const router = useRouter();
@@ -381,7 +380,7 @@ export default function SubscriptionForm({ onSave, onCancel, mode, subscriptionI
             notes: data && data.notes ? data.notes : '',
             perSeatMonthlyPrice: data && data.per_seat_monthly_price ? data.per_seat_monthly_price : 0,
             perSeatYearlyPrice: data && data.per_seat_yearly_price ? data.per_seat_yearly_price : 0,
-            perSeatCurrency: data && data.per_seat_currency ? data.per_seat_currency : 'jpy',
+            perSeatCurrency: data && data.per_seat_currency ? data.per_seat_currency.toUpperCase() as 'JPY' | 'USD' : 'JPY',
         },
     });
 
@@ -446,7 +445,7 @@ export default function SubscriptionForm({ onSave, onCancel, mode, subscriptionI
         } finally {
             setLoading(false);
         }
-        
+
         onSave();
     };
 

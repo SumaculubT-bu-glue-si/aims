@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { subscriptions as initialSubscriptions, employees as initialEmployees } from '@/lib/mock-data';
-import type { BillingCycle, Account, Subscription, AssignedUser, Employee } from '@/lib/types';
+import type { BillingCycle, Account, Subscription, AssignedUser, Employee, License } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -24,7 +24,7 @@ import { gql } from "@apollo/client";
 
 const USD_JPY_RATE = 150;
 
-function formatDate(date?: string) {
+function formatDate(date?: Date) {
     if (!date) return 'N/A';
     const d = new Date(date);
     if (isNaN(d.getTime())) return 'N/A';
@@ -582,11 +582,11 @@ export default function SubscriptionDetailPage() {
                                                 usedLicenses.map(license => (
                                                     <TableRow
                                                         key={license.account_id}
-                                                        onClick={() => license.assigned_employee?.id && router.push(`/license/employees/${license.assigned_employee?.id}/subscriptions/${id}/edit?accountId=${license.assigned_employee?.id}`)}
-                                                        className={license.assigned_employee?.id ? "cursor-pointer" : ""}
+                                                        onClick={() => license.assigned_employee?.employee_id && router.push(`/license/employees/${license.assigned_employee.employee_id}/subscriptions/${id}/edit?accountId=${license.account_id}&redirect=${encodeURIComponent('/license/subscriptions/' + id)}`)}
+                                                        className={license.assigned_employee?.employee_id ? "cursor-pointer" : ""}
                                                     >
                                                         <TableCell className="font-medium flex items-center gap-2">
-                                                            {license.assigned_employee?.id && (
+                                                            {license.assigned_employee?.employee_id && (
                                                                 <>
                                                                     <User className="w-4 h-4 text-muted-foreground" />
                                                                     <span>{license.assigned_employee?.name}</span>
