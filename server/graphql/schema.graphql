@@ -1836,15 +1836,6 @@ input UpdateLicenseInput {
     assigned_employee: EmployeeInput
 }
 
-input EmployeeInput {
-    employee_id: String
-    name: String
-    email: String
-    location: String
-    projects: String
-    org_unit_path: String
-}
-
 type AssignEmployeeResponse {
     success: Boolean!
     message: String!
