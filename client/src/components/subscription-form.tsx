@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useForm, useFieldArray, useWatch } from 'react-hook-form';
@@ -11,35 +10,38 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { useRouter } from 'next/navigation';
-import type { Subscription, Account, AssignedUser } from '@/lib/types/index';
-import { Trash2 } from 'lucide-react';
+import type { Subscription, Account, AssignedUser } from '@/lib/types';
+import { CalendarIcon, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { enUS, ja } from "date-fns/locale"
+import { format } from "date-fns"
+import { useI18n } from "@/hooks/use-i18n"
+import { createSubscription, updateSubscription } from '@/lib/graphql-client';
 
-const billingCycleSchema = z.object({
-    unit: z.enum(['day', 'week', 'month', 'year']),
-    period: z.coerce.number().int().min(1, 'Period must be at least 1'),
-}).optional();
-
-const accountSchema = z.object({
+const licenseSchema = z.object({
+    id: z.string().optional(),
     accountId: z.string().min(1, 'Account ID is required'),
-    amount: z.coerce.number().min(0, 'Amount must be 0 or greater'),
+    unitPrice: z.coerce.number().min(0, 'Amount must be 0 or greater'),
     currency: z.enum(['JPY', 'USD']),
-    billingCycle: billingCycleSchema,
+    billingCycle: z.coerce.number().int().min(1, 'Period must be at least 1').optional(),
+    billingInterval: z.enum(['day', 'week', 'month', 'year']).optional(),
     startDate: z.string().min(1, 'Start date is required'),
     endDate: z.string().optional(),
     renewalDate: z.string().optional(),
     version: z.string().optional(),
     licenseKey: z.string().optional(),
-    // Add these so they are not stripped out by the form
-    assignedUser: z.string().optional(),
-    assignedDevice: z.string().optional(),
+    used: z.boolean().optional(),
+    assignedEmployee: z.object({
+        employeeId: z.string().optional(),
+        name: z.string().optional(),
+        email: z.string().optional(),
+        location: z.string().optional(),
+        projects: z.string().optional(),
+        orgUnitPath: z.string().optional(),
+    }).optional(),
 });
-
-const perUserPricingSchema = z.object({
-    monthly: z.coerce.number().optional(),
-    yearly: z.coerce.number().optional(),
-    currency: z.enum(['JPY', 'USD']),
-}).optional();
 
 const assignedUserSchema = z.object({
     employeeId: z.string(),
@@ -47,28 +49,37 @@ const assignedUserSchema = z.object({
 });
 
 const subscriptionSchema = z.object({
-    name: z.string().min(1, { message: 'Service name is required' }),
-    licenseType: z.enum(['subscription', 'perpetual'], { required_error: 'License type is required' }),
-    pricingType: z.enum(['per-license', 'per-seat'], { required_error: 'Pricing type is required' }),
+    serviceName: z.string().min(1, { message: 'Service name is required' }),
     status: z.enum(['active', 'inactive'], { required_error: 'Status is required' }),
+    pricingType: z.enum(['per-license', 'per-seat'], { required_error: 'Pricing type is required' }),
+    licenseType: z.enum(['subscription', 'perpetual'], { required_error: 'License type is required' }),
+    licenses: z.array(licenseSchema),
     vendor: z.string().optional(),
     category: z.string().optional(),
     paymentMethod: z.string().optional(),
-    website: z.string().url({ message: 'Please enter a valid URL' }).optional().or(z.literal('')),
-    supportPage: z.string().url({ message: 'Please enter a valid URL' }).optional().or(z.literal('')),
+    cancellationDate: z.date().optional(),
+    officialWebsite: z.string().url({ message: 'Please enter a valid URL' }).optional().or(z.literal('')),
+    officialSupport: z.string().url({ message: 'Please enter a valid URL' }).optional().or(z.literal('')),
     notes: z.string().optional(),
-    accounts: z.array(accountSchema),
-    perUserPricing: perUserPricingSchema.optional(),
-    cancellationDate: z.string().optional(),
-    assignedUsers: z.array(assignedUserSchema).optional(), // Keep assignedUsers
+    // assignedUsers: z.array(assignedUserSchema).optional(),
+    perSeatMonthlyPrice: z.coerce.number().optional(),
+    perSeatYearlyPrice: z.coerce.number().optional(),
+    perSeatCurrency: z.enum(['jpy', 'usd']).optional(),
 });
 
 type SubscriptionFormValues = z.infer<typeof subscriptionSchema>;
 
 interface SubscriptionFormProps {
-    onSave: (data: Partial<Subscription>) => void;
+    onSave: () => void;
     onCancel: () => void;
-    initialData?: Partial<Subscription>;
+    mode: 'create' | 'update';
+    subscriptionId?: string;
+    initialData?: {
+        licenseType: 'subscription' | 'perpetual';
+        status: 'active' | 'inactive';
+        pricingType: 'per-license' | 'per-seat';
+    };
+    data?: Subscription;
 }
 
 function PricingTypeFields({ control }: { control: any }) {
@@ -76,8 +87,10 @@ function PricingTypeFields({ control }: { control: any }) {
     const licenseType = useWatch({ control, name: 'licenseType' });
     const { fields, append, remove } = useFieldArray({
         control: control,
-        name: "accounts",
+        name: "licenses",
     });
+
+    const { t } = useI18n();
 
     if (pricingType === 'per-seat') {
         return (
@@ -90,7 +103,7 @@ function PricingTypeFields({ control }: { control: any }) {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <FormField
                             control={control}
-                            name="perUserPricing.monthly"
+                            name="perSeatMonthlyPrice"
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Monthly (Optional)</FormLabel>
@@ -103,7 +116,7 @@ function PricingTypeFields({ control }: { control: any }) {
                         />
                         <FormField
                             control={control}
-                            name="perUserPricing.yearly"
+                            name="perSeatYearlyPrice"
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Yearly (Optional)</FormLabel>
@@ -116,7 +129,7 @@ function PricingTypeFields({ control }: { control: any }) {
                         />
                         <FormField
                             control={control}
-                            name="perUserPricing.currency"
+                            name="perSeatCurrency"
                             render={({ field }) => (
                                 <FormItem>
                                     <FormLabel>Currency <span className="text-destructive ml-1">*</span></FormLabel>
@@ -127,8 +140,8 @@ function PricingTypeFields({ control }: { control: any }) {
                                             </SelectTrigger>
                                         </FormControl>
                                         <SelectContent>
-                                            <SelectItem value="JPY">JPY</SelectItem>
-                                            <SelectItem value="USD">USD</SelectItem>
+                                            <SelectItem value="jpy">JPY</SelectItem>
+                                            <SelectItem value="usd">USD</SelectItem>
                                         </SelectContent>
                                     </Select>
                                     <FormMessage />
@@ -139,7 +152,7 @@ function PricingTypeFields({ control }: { control: any }) {
                     <FormDescription>Enter either monthly or yearly price, or both.</FormDescription>
                 </CardContent>
             </Card>
-        )
+        );
     }
 
     if (pricingType === 'per-license') {
@@ -155,7 +168,7 @@ function PricingTypeFields({ control }: { control: any }) {
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <FormField
                                     control={control}
-                                    name={`accounts.${index}.accountId`}
+                                    name={`licenses.${index}.accountId`}
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Account ID <span className="text-destructive ml-1">*</span></FormLabel>
@@ -168,7 +181,7 @@ function PricingTypeFields({ control }: { control: any }) {
                                 />
                                 <FormField
                                     control={control}
-                                    name={`accounts.${index}.amount`}
+                                    name={`licenses.${index}.unitPrice`}
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Unit Price <span className="text-destructive ml-1">*</span></FormLabel>
@@ -181,7 +194,7 @@ function PricingTypeFields({ control }: { control: any }) {
                                 />
                                 <FormField
                                     control={control}
-                                    name={`accounts.${index}.currency`}
+                                    name={`licenses.${index}.currency`}
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Currency <span className="text-destructive ml-1">*</span></FormLabel>
@@ -204,7 +217,7 @@ function PricingTypeFields({ control }: { control: any }) {
                                     <div className="md:col-span-2 grid grid-cols-2 gap-4">
                                         <FormField
                                             control={control}
-                                            name={`accounts.${index}.billingCycle.period`}
+                                            name={`licenses.${index}.billingCycle`}
                                             render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>Billing Cycle</FormLabel>
@@ -217,7 +230,7 @@ function PricingTypeFields({ control }: { control: any }) {
                                         />
                                         <FormField
                                             control={control}
-                                            name={`accounts.${index}.billingCycle.unit`}
+                                            name={`licenses.${index}.billingInterval`}
                                             render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel>&nbsp;</FormLabel>
@@ -240,50 +253,41 @@ function PricingTypeFields({ control }: { control: any }) {
                                         />
                                     </div>
                                 )}
-                                <FormField
-                                    control={control}
-                                    name={`accounts.${index}.startDate`}
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Start Date</FormLabel>
-                                            <FormControl>
-                                                <Input type="date" {...field} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={control}
-                                    name={`accounts.${index}.endDate`}
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>End Date</FormLabel>
-                                            <FormControl>
-                                                <Input type="date" {...field} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                                <FormField control={control} name={`licenses.${index}.startDate`} render={({ field }) => (
+                                    <FormItem className="">
+                                        <FormLabel>Start Date</FormLabel>
+                                        <Popover>
+                                            <PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("h-10 w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, t('date.format'), { locale: t('date.locale') === 'en-US' ? enUS : ja }) : <span>{t('actions.pick_date')}</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
+                                            <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" onSelect={field.onChange} initialFocus /></PopoverContent>
+                                        </Popover>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
+                                <FormField control={control} name={`licenses.${index}.endDate`} render={({ field }) => (
+                                    <FormItem className="">
+                                        <FormLabel>End Date</FormLabel>
+                                        <Popover>
+                                            <PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("h-10 w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, t('date.format'), { locale: t('date.locale') === 'en-US' ? enUS : ja }) : <span>{t('actions.pick_date')}</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
+                                            <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" onSelect={field.onChange} initialFocus /></PopoverContent>
+                                        </Popover>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
                                 {licenseType === 'subscription' && (
-                                    <FormField
-                                        control={control}
-                                        name={`accounts.${index}.renewalDate`}
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Renewal Date</FormLabel>
-                                                <FormControl>
-                                                    <Input type="date" {...field} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
+                                    <FormField control={control} name={`licenses.${index}.renewalDate`} render={({ field }) => (
+                                        <FormItem className="">
+                                            <FormLabel>Renewal Date</FormLabel>
+                                            <Popover>
+                                                <PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("h-10 w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, t('date.format'), { locale: t('date.locale') === 'en-US' ? enUS : ja }) : <span>{t('actions.pick_date')}</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" onSelect={field.onChange} initialFocus /></PopoverContent>
+                                            </Popover>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
                                 )}
                                 <FormField
                                     control={control}
-                                    name={`accounts.${index}.version`}
+                                    name={`licenses.${index}.version`}
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Version</FormLabel>
@@ -296,7 +300,7 @@ function PricingTypeFields({ control }: { control: any }) {
                                 />
                                 <FormField
                                     control={control}
-                                    name={`accounts.${index}.licenseKey`}
+                                    name={`licenses.${index}.licenseKey`}
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>License Key</FormLabel>
@@ -324,7 +328,7 @@ function PricingTypeFields({ control }: { control: any }) {
                     <Button
                         type="button"
                         variant="outline"
-                        onClick={() => append({ accountId: `new-${fields.length + 1}`, amount: 0, currency: 'JPY', billingCycle: { unit: 'month', period: 1 } })}
+                        onClick={() => append({ accountId: `new-${fields.length + 1}`, unitPrice: 0, currency: 'JPY', billingCycle: 1, billingInterval: 'month' })}
                     >
                         Add Account
                     </Button>
@@ -336,91 +340,114 @@ function PricingTypeFields({ control }: { control: any }) {
 }
 
 
-export default function SubscriptionForm({ onSave, onCancel, initialData }: SubscriptionFormProps) {
+import React, { useState } from 'react';
+import { toast } from '@/hooks/use-toast';
+import { Subscription } from '@/lib/types';
+
+export default function SubscriptionForm({ onSave, onCancel, mode, subscriptionId, initialData, data }: SubscriptionFormProps) {
     const router = useRouter();
+    const { t } = useI18n();
+    const [loading, setLoading] = useState(false);
 
     const form = useForm<SubscriptionFormValues>({
         resolver: zodResolver(subscriptionSchema),
-        defaultValues: initialData ? {
-            ...initialData,
-            cancellationDate: initialData.cancellationDate ? new Date(initialData.cancellationDate).toISOString().split('T')[0] : '',
-            accounts: initialData.accounts?.map(a => ({
-                ...a,
-                startDate: a.startDate ? new Date(a.startDate).toISOString().split('T')[0] : '',
-                endDate: a.endDate ? new Date(a.endDate).toISOString().split('T')[0] : '',
-                renewalDate: a.renewalDate ? new Date(a.renewalDate).toISOString().split('T')[0] : '',
-            })) || [],
-            perUserPricing: initialData.perUserPricing || { currency: 'JPY' }
-        } : {
-            name: '',
-            licenseType: 'subscription',
-            pricingType: 'per-license',
-            status: 'active',
-            vendor: '',
-            category: '',
-            paymentMethod: '',
-            website: '',
-            supportPage: '',
-            notes: '',
-            accounts: [],
-            assignedUsers: [],
-            perUserPricing: { currency: 'JPY' },
-            cancellationDate: '',
+        defaultValues: {
+            serviceName: data && data.service_name ? data.service_name : '',
+            status: data && data.status ? data.status : 'active',
+            pricingType: data && data.pricing_type ? data.pricing_type : 'per-license',
+            licenseType: data && data.license_type ? data.license_type : initialData?.licenseType,
+            licenses: data && data.licenses.length > 0 ? data.licenses.map(license => ({
+                id: license.id,
+                accountId: license.account_id,
+                unitPrice: license.unit_price,
+                currency: license.currency.toUpperCase() as 'JPY' | 'USD' ?? null,
+                billingCycle: license.billing_cycle,
+                billingInterval: license.billing_interval,
+                startDate: license.start_date ? new Date(license.start_date) : undefined,
+                endDate: license.end_date ? new Date(license.end_date) : undefined,
+                renewalDate: license.renewal_date ? new Date(license.renewal_date) : undefined,
+                version: license.version ?? undefined,
+                licenseKey: license.license_key ?? undefined,
+                used: license.used ?? false,
+                assignedEmployee: license.assigned_employee ?? undefined
+            })) : [],
+            // assignedUsers: data ? [] : [],
+            vendor: data && data.vendor ? data.vendor : '',
+            category: data && data.category ? data.category : '',
+            paymentMethod: data && data.payment_method ? data.payment_method : '',
+            cancellationDate: data && data.cancellation_date ? new Date(data.cancellation_date) : undefined,
+            officialWebsite: data && data.official_website ? data.official_website : '',
+            officialSupport: data && data.official_support ? data.official_support : '',
+            notes: data && data.notes ? data.notes : '',
+            perSeatMonthlyPrice: data && data.per_seat_monthly_price ? data.per_seat_monthly_price : 0,
+            perSeatYearlyPrice: data && data.per_seat_yearly_price ? data.per_seat_yearly_price : 0,
+            perSeatCurrency: data && data.per_seat_currency ? data.per_seat_currency : 'jpy',
         },
     });
 
-    const onSubmit = (data: SubscriptionFormValues) => {
-        const saveData: Partial<Subscription> = {
-            ...data,
+    const onSubmit = async (data: SubscriptionFormValues) => {
+        setLoading(true);
+        // Transform data to match the GraphQL input structure
+        const subscriptionData = {
+            serviceName: data.serviceName,
+            vendor: data.vendor,
+            licenseType: data.licenseType,
+            pricingType: data.pricingType,
+            status: data.status,
+            category: data.category,
+            paymentMethod: data.paymentMethod,
+            cancellationDate: data.cancellationDate,
+            officialWebsite: data.officialWebsite,
+            officialSupport: data.officialSupport,
+            perSeatMonthlyPrice: data.perSeatMonthlyPrice,
+            perSeatYearlyPrice: data.perSeatYearlyPrice,
+            perSeatCurrency: data.perSeatCurrency,
+            notes: data.notes,
+            licenses: data.licenses.map(license => ({
+                id: (license as any).id,
+                accountId: license.accountId,
+                unitPrice: license.unitPrice,
+                currency: license.currency,
+                billingCycle: license.billingCycle,
+                billingInterval: license.billingInterval,
+                startDate: license.startDate,
+                endDate: license.endDate,
+                renewalDate: license.renewalDate,
+                version: license.version,
+                licenseKey: license.licenseKey,
+                used: license.used,
+                assignedEmployee: license.assignedEmployee
+            })),
         };
+        console.log(subscriptionData)
 
-        if (initialData) {
-            if (data.pricingType === 'per-license') {
-                // Transform form accounts to match centralized Account interface
-                saveData.accounts = data.accounts?.map(account => ({
-                    accountId: account.accountId,
-                    assignedUser: account.assignedUser,
-                    assignedDevice: account.assignedDevice,
-                    version: account.version,
-                    startDate: account.startDate,
-                    endDate: account.endDate,
-                    renewalDate: account.renewalDate,
-                    amount: account.amount,
-                    currency: account.currency,
-                    billingCycle: account.billingCycle,
-                    licenseKey: account.licenseKey,
-                })) || [];
-                saveData.perUserPricing = undefined;
-                saveData.assignedUsers = initialData.assignedUsers; // Retain existing users
-            } else if (data.pricingType === 'per-seat') {
-                saveData.perUserPricing = data.perUserPricing;
-                saveData.accounts = initialData.accounts; // Retain existing accounts
-                saveData.assignedUsers = data.assignedUsers;
+        try {
+            if (mode === 'create') {
+                await createSubscription(subscriptionData);
+                toast({
+                    title: 'Success',
+                    description: 'Subscription created successfully.',
+                });
+            } else if (mode === 'update' && subscriptionId) {
+                await updateSubscription(subscriptionId, subscriptionData);
+                toast({
+                    title: 'Success',
+                    description: 'Subscription updated successfully.',
+                });
             }
-        } else {
-            // This is a new subscription
-            if (data.pricingType === 'per-license') {
-                // Transform form accounts to match centralized Account interface
-                saveData.accounts = data.accounts?.map(account => ({
-                    accountId: account.accountId,
-                    assignedUser: account.assignedUser,
-                    assignedDevice: account.assignedDevice,
-                    version: account.version,
-                    startDate: account.startDate,
-                    endDate: account.endDate,
-                    renewalDate: account.renewalDate,
-                    amount: account.amount,
-                    currency: account.currency,
-                    billingCycle: account.billingCycle,
-                    licenseKey: account.licenseKey,
-                })) || [];
-                saveData.assignedUsers = [];
-            } else if (data.pricingType === 'per-seat') {
-                saveData.assignedUsers = [];
-                saveData.accounts = [];
-            }
+        } catch (error) {
+            console.error('Error saving subscription:', error);
+            toast({
+                title: 'Error',
+                description: 'Failed to save subscription. Please try again.',
+                variant: 'destructive',
+            });
+            return;
+        } finally {
+            setLoading(false);
         }
-        onSave(saveData);
+        
+        onSave();
     };
 
     const handleCancel = () => {
@@ -444,7 +471,7 @@ export default function SubscriptionForm({ onSave, onCancel, initialData }: Subs
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <FormField
                                     control={form.control}
-                                    name="name"
+                                    name="serviceName"
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Service Name <span className="text-destructive ml-1">*</span></FormLabel>
@@ -557,28 +584,25 @@ export default function SubscriptionForm({ onSave, onCancel, initialData }: Subs
                                         </FormItem>
                                     )}
                                 />
-                                <FormField
-                                    control={form.control}
-                                    name="cancellationDate"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Cancellation Date</FormLabel>
-                                            <FormControl>
-                                                <Input type="date" {...field} />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                                <FormField control={form.control} name="cancellationDate" render={({ field }) => (
+                                    <FormItem className="">
+                                        <FormLabel>Cancellation Date</FormLabel>
+                                        <Popover>
+                                            <PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("h-10 w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, t('date.format'), { locale: t('date.locale') === 'en-US' ? enUS : ja }) : <span>{t('actions.pick_date')}</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
+                                            <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" onSelect={field.onChange} initialFocus /></PopoverContent>
+                                        </Popover>
+                                        <FormMessage />
+                                    </FormItem>
+                                )} />
                             </div>
                             <FormField
                                 control={form.control}
-                                name="website"
+                                name="officialWebsite"
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel>Official Website</FormLabel>
                                         <FormControl>
-                                            <Input type="url" placeholder="https://example.com" {...field} />
+                                            <Input placeholder='e.g., https://www.google.com/workspace/' {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -586,12 +610,12 @@ export default function SubscriptionForm({ onSave, onCancel, initialData }: Subs
                             />
                             <FormField
                                 control={form.control}
-                                name="supportPage"
+                                name="officialSupport"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Support Page</FormLabel>
+                                        <FormLabel>Official Support Page</FormLabel>
                                         <FormControl>
-                                            <Input type="url" placeholder="https://example.com/support" {...field} />
+                                            <Input placeholder='e.g., https://support.google.com/' {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -604,7 +628,7 @@ export default function SubscriptionForm({ onSave, onCancel, initialData }: Subs
                                     <FormItem>
                                         <FormLabel>Notes</FormLabel>
                                         <FormControl>
-                                            <Textarea placeholder='Enter notes for management' {...field} />
+                                            <Textarea placeholder='Any additional notes...' {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -612,19 +636,15 @@ export default function SubscriptionForm({ onSave, onCancel, initialData }: Subs
                             />
                         </CardContent>
                     </Card>
-
                     <PricingTypeFields control={form.control} />
                 </div>
-
-
-                <div className="flex justify-end gap-2 sticky bottom-0 bg-background py-4">
-                    <Button type="button" variant="outline" onClick={handleCancel}>
-                        Cancel
+                <div className="flex justify-end space-x-2 pt-4">
+                    <Button type="button" variant="outline" onClick={handleCancel}>Cancel</Button>
+                    <Button type="submit" disabled={loading}>
+                        {loading ? 'Submitting...' : mode === 'create' ? 'Create' : 'Update'}
                     </Button>
-                    <Button type="submit">Save</Button>
                 </div>
             </form>
         </Form>
     );
 }
-
