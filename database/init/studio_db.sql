@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Oct 17, 2025 at 03:17 AM
+-- Generation Time: Oct 20, 2025 at 04:24 AM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -315,6 +315,20 @@ INSERT INTO `employees` (`id`, `employee_id`, `name`, `location`, `projects`, `e
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `employee_service_subscription`
+--
+
+CREATE TABLE `employee_service_subscription` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `service_subscription_id` bigint(20) UNSIGNED NOT NULL,
+  `employee_id` varchar(255) NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `failed_jobs`
 --
 
@@ -378,6 +392,31 @@ CREATE TABLE `job_batches` (
   `cancelled_at` int(11) DEFAULT NULL,
   `created_at` int(11) NOT NULL,
   `finished_at` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `licenses`
+--
+
+CREATE TABLE `licenses` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `service_subscription_id` bigint(20) UNSIGNED NOT NULL,
+  `used` tinyint(1) NOT NULL DEFAULT 0,
+  `assigned_employee_id` varchar(64) DEFAULT NULL,
+  `account_id` varchar(255) NOT NULL,
+  `unit_price` int(11) NOT NULL,
+  `currency` enum('jpy','usd') NOT NULL,
+  `billing_cycle` int(11) DEFAULT NULL,
+  `billing_interval` enum('day','week','month','year') DEFAULT NULL,
+  `start_date` date DEFAULT NULL,
+  `end_date` date DEFAULT NULL,
+  `renewal_date` date DEFAULT NULL,
+  `version` varchar(255) DEFAULT NULL,
+  `license_key` varchar(255) DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
@@ -473,7 +512,16 @@ INSERT INTO `migrations` (`id`, `migration`, `batch`) VALUES
 (36, '2025_09_07_111127_create_personal_access_tokens_table', 18),
 (37, '2025_09_08_000001_add_parent_id_to_locations_table', 18),
 (38, '2024_01_01_000000_add_chat_space_to_audit_plans', 19),
-(39, '2025_10_15_064449_create_activity_logs_table', 20);
+(39, '2025_10_15_064449_create_activity_logs_table', 20),
+(40, '2025_09_08_031602_add_calendar_events_to_audit_plans_table', 21),
+(41, '2025_09_25_054537_create_subscriptions_table', 21),
+(42, '2025_09_25_054549_create_licenses_table', 21),
+(43, '2025_09_30_020244_rename_subscriptions_to_service_subscriptions', 21),
+(44, '2025_09_30_020837_rename_subscription_id_to_service_subscription_id_in_licenses', 21),
+(45, '2025_09_30_071217_update_licenses_table', 21),
+(46, '2025_10_01_051657_create_employee_service_subscription_table', 21),
+(47, '2025_10_03_045335_update_service_subscriptions_table', 21),
+(48, '2025_10_13_000001_alter_assigned_employee_id_on_licenses', 21);
 
 -- --------------------------------------------------------
 
@@ -545,6 +593,32 @@ INSERT INTO `projects` (`id`, `name`, `description`, `visible`, `order`, `create
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `service_subscriptions`
+--
+
+CREATE TABLE `service_subscriptions` (
+  `id` bigint(20) UNSIGNED NOT NULL,
+  `service_name` varchar(255) NOT NULL,
+  `vendor` varchar(255) DEFAULT NULL,
+  `license_type` enum('subscription','perpetual') NOT NULL,
+  `pricing_type` enum('per-license','per-seat') NOT NULL,
+  `status` enum('active','inactive') NOT NULL,
+  `category` varchar(255) DEFAULT NULL,
+  `payment_method` varchar(255) DEFAULT NULL,
+  `cancellation_date` date DEFAULT NULL,
+  `official_website` varchar(255) DEFAULT NULL,
+  `official_support` varchar(255) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `per_seat_monthly_price` int(11) DEFAULT NULL,
+  `per_seat_yearly_price` int(11) DEFAULT NULL,
+  `per_seat_currency` enum('jpy','usd') NOT NULL DEFAULT 'jpy',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `sessions`
 --
 
@@ -556,13 +630,6 @@ CREATE TABLE `sessions` (
   `payload` longtext NOT NULL,
   `last_activity` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `sessions`
---
-
-INSERT INTO `sessions` (`id`, `user_id`, `ip_address`, `user_agent`, `payload`, `last_activity`) VALUES
-('whEGjDVSnUIcJnabL7BBBcfBWjHLfJqVAXtLMNyn', NULL, '127.0.0.1', 'Mozilla/5.0 (Windows NT; Windows NT 10.0; en-PH) WindowsPowerShell/5.1.26100.4768', 'YTozOntzOjY6Il90b2tlbiI7czo0MDoia0ZzajVZV1FaOXRlT1JXd3lmVlUyUkZNVTZTNThMR0ZvYVV2ZTVydiI7czo5OiJfcHJldmlvdXMiO2E6MTp7czozOiJ1cmwiO3M6MjE6Imh0dHA6Ly8xMjcuMC4wLjE6ODAwMCI7fXM6NjoiX2ZsYXNoIjthOjI6e3M6Mzoib2xkIjthOjA6e31zOjM6Im5ldyI7YTowOnt9fX0=', 1755523995);
 
 -- --------------------------------------------------------
 
@@ -693,6 +760,14 @@ ALTER TABLE `employees`
   ADD UNIQUE KEY `employees_email_unique` (`email`);
 
 --
+-- Indexes for table `employee_service_subscription`
+--
+ALTER TABLE `employee_service_subscription`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `employee_service_subscription_service_subscription_id_foreign` (`service_subscription_id`),
+  ADD KEY `employee_service_subscription_employee_id_foreign` (`employee_id`);
+
+--
 -- Indexes for table `failed_jobs`
 --
 ALTER TABLE `failed_jobs`
@@ -711,6 +786,14 @@ ALTER TABLE `jobs`
 --
 ALTER TABLE `job_batches`
   ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `licenses`
+--
+ALTER TABLE `licenses`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `licenses_service_subscription_id_foreign` (`service_subscription_id`),
+  ADD KEY `licenses_assigned_employee_id_foreign` (`assigned_employee_id`);
 
 --
 -- Indexes for table `locations`
@@ -744,6 +827,12 @@ ALTER TABLE `personal_access_tokens`
 -- Indexes for table `projects`
 --
 ALTER TABLE `projects`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `service_subscriptions`
+--
+ALTER TABLE `service_subscriptions`
   ADD PRIMARY KEY (`id`);
 
 --
@@ -820,6 +909,12 @@ ALTER TABLE `employees`
   MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=26;
 
 --
+-- AUTO_INCREMENT for table `employee_service_subscription`
+--
+ALTER TABLE `employee_service_subscription`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `failed_jobs`
 --
 ALTER TABLE `failed_jobs`
@@ -832,6 +927,12 @@ ALTER TABLE `jobs`
   MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=112;
 
 --
+-- AUTO_INCREMENT for table `licenses`
+--
+ALTER TABLE `licenses`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `locations`
 --
 ALTER TABLE `locations`
@@ -841,7 +942,7 @@ ALTER TABLE `locations`
 -- AUTO_INCREMENT for table `migrations`
 --
 ALTER TABLE `migrations`
-  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=40;
+  MODIFY `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=49;
 
 --
 -- AUTO_INCREMENT for table `personal_access_tokens`
@@ -854,6 +955,12 @@ ALTER TABLE `personal_access_tokens`
 --
 ALTER TABLE `projects`
   MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+
+--
+-- AUTO_INCREMENT for table `service_subscriptions`
+--
+ALTER TABLE `service_subscriptions`
+  MODIFY `id` bigint(20) UNSIGNED NOT NULL AUTO_INCREMENT;
 
 --
 -- AUTO_INCREMENT for table `users`
@@ -919,6 +1026,20 @@ ALTER TABLE `corrective_action_assignments`
   ADD CONSTRAINT `corrective_action_assignments_assigned_to_employee_id_foreign` FOREIGN KEY (`assigned_to_employee_id`) REFERENCES `employees` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `corrective_action_assignments_audit_assignment_id_foreign` FOREIGN KEY (`audit_assignment_id`) REFERENCES `audit_assignments` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `corrective_action_assignments_corrective_action_id_foreign` FOREIGN KEY (`corrective_action_id`) REFERENCES `corrective_actions` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `employee_service_subscription`
+--
+ALTER TABLE `employee_service_subscription`
+  ADD CONSTRAINT `employee_service_subscription_employee_id_foreign` FOREIGN KEY (`employee_id`) REFERENCES `employees` (`employee_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `employee_service_subscription_service_subscription_id_foreign` FOREIGN KEY (`service_subscription_id`) REFERENCES `service_subscriptions` (`id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `licenses`
+--
+ALTER TABLE `licenses`
+  ADD CONSTRAINT `licenses_assigned_employee_id_foreign` FOREIGN KEY (`assigned_employee_id`) REFERENCES `employees` (`employee_id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `licenses_service_subscription_id_foreign` FOREIGN KEY (`service_subscription_id`) REFERENCES `service_subscriptions` (`id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `locations`

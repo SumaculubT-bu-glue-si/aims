@@ -4,16 +4,15 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { employees as initialEmployees, subscriptions as initialSubscriptions } from '@/lib/mock-data';
-import type { Subscription, Employee } from '@/lib/types/index';
+import type { Subscription, Employee } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Mail, Building, Edit } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Mail, Building } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import EmployeeForm from '@/components/employee-form';
+import { graphqlQuery, INVENTORY_QUERIES, getSubscriptions } from '@/lib/graphql-client';
+import { Skeleton } from '@/components/ui/skeleton';
 
 function formatDate(date?: string) {
     if (!date) return 'N/A';
@@ -27,18 +26,12 @@ export default function EmployeeDetailPage() {
     const params = useParams();
     const id = params.id as string;
 
-    const [employees, setEmployees] = useState<Employee[]>([]);
-    const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [employee, setEmployee] = useState<Employee | null>(null);
+    const [subscriptions, setSubscriptions] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
     const { toast } = useToast();
 
     useEffect(() => {
-        // Load data from localStorage or use initial dummy data
-        const storedSubscriptions = localStorage.getItem('subscriptions');
-        const storedEmployees = localStorage.getItem('employees');
-        setSubscriptions(storedSubscriptions ? JSON.parse(storedSubscriptions) : initialSubscriptions);
-        setEmployees(storedEmployees ? JSON.parse(storedEmployees) : initialEmployees);
-
         // Check for flash message from other pages (e.g., after unassign)
         try {
             const msg = sessionStorage.getItem('flash_unassign_message');
@@ -51,44 +44,113 @@ export default function EmployeeDetailPage() {
         }
     }, []);
 
-    const employee = employees.find(e => e.id === id);
+    useEffect(() => {
+        const load = async () => {
+            setLoading(true);
+            try {
+                // Fetch employees and find by employee_id param
+                const resp = await graphqlQuery(INVENTORY_QUERIES.GET_EMPLOYEES, { first: 1000, page: 1 });
+                const list: Employee[] = (resp?.data?.employees?.data || []).map((emp: any) => ({
+                    id: emp.id,
+                    employee_id: emp.employee_id,
+                    name: emp.name,
+                    email: emp.email || '',
+                    location: emp.location || '',
+                    org_unit_path: emp.org_unit_path || '',
+                    projects: Array.isArray(emp.projects) ? (emp.projects.join(', ')) : (emp.projects || ''),
+                }));
+                const found = list.find(e => e.employee_id === id) || null;
+                setEmployee(found);
 
-    const getAssignedSubscriptions = (): (Subscription & { assignmentType: 'license' | 'seat', accountId?: string, endDate?: string })[] => {
+                // Fetch all subscriptions with assigned employees
+                const subs = await getSubscriptions();
+                setSubscriptions(subs || []);
+            } finally {
+                setLoading(false);
+            }
+        };
+        load();
+    }, [id]);
+
+    const getAssignedSubscriptions = (): Array<{ id: string; name: string; pricing_type: string; status: string; assignmentType: 'license' | 'seat'; accountId?: string; endDate?: string; assignedDate?: string; renewalDate?: string; }> => {
         if (!employee) return [];
 
-        const assigned: (Subscription & { assignmentType: 'license' | 'seat', accountId?: string, endDate?: string })[] = [];
+        const empId = employee.employee_id;
+        const assigned: Array<{ id: string; name: string; pricing_type: string; status: string; assignmentType: 'license' | 'seat'; accountId?: string; endDate?: string; assignedDate?: string; renewalDate?: string; }> = [];
 
-        subscriptions.forEach(sub => {
-            if (sub.pricingType === 'per-license') {
-                sub.accounts.forEach(acc => {
-                    if (acc.assignedUser === employee.id) {
-                        assigned.push({ ...sub, assignmentType: 'license', accountId: acc.accountId, endDate: acc.endDate });
+        subscriptions.forEach((sub: any) => {
+            // Per-seat: check if employee is in sub.employees
+            const matchedSeat = Array.isArray(sub.employees) ? sub.employees.find((e: any) => e?.employee_id === empId) : null;
+            if (matchedSeat) {
+                assigned.push({ id: sub.id, name: sub.service_name, pricing_type: sub.pricing_type, status: sub.status, assignmentType: 'seat', assignedDate: matchedSeat.assigned_at || undefined });
+            }
+
+            // Per-license: scan licenses[].assigned_employee
+            if (Array.isArray(sub.licenses)) {
+                sub.licenses.forEach((lic: any) => {
+                    const ae = lic?.assigned_employee;
+                    if (ae && (ae.employee_id === empId)) {
+                        assigned.push({ id: sub.id, name: sub.service_name, pricing_type: sub.pricing_type, status: sub.status, assignmentType: 'license', accountId: lic.account_id, endDate: lic.end_date, assignedDate: lic.start_date, renewalDate: lic.renewal_date });
                     }
                 });
-            }
-            else if (sub.pricingType === 'per-seat') {
-                const assignedUser = sub.assignedUsers?.find(u => u.employeeId === employee.id);
-                if (assignedUser) {
-                    // per-seat subscriptions don't have a specific end date per user in this model
-                    assigned.push({ ...sub, assignmentType: 'seat' });
-                }
             }
         });
 
         return assigned;
     }
 
-    const handleSave = (data: Partial<Employee>) => {
-        const updatedEmployees = employees.map(emp => (emp.id === id ? { ...emp, ...data } : emp));
-        localStorage.setItem('employees', JSON.stringify(updatedEmployees));
-        setEmployees(updatedEmployees);
-        setIsEditModalOpen(false);
-        try {
-            toast({ title: 'Updated', description: 'Employee information updated' });
-        } catch (e) {
-            // ignore if toast isn't available
-        }
-    };
+    // edit modal removed
+
+    if (loading) {
+        return (
+            <div className="flex flex-col min-h-screen w-full bg-background">
+                <div className="flex items-start justify-between mb-6">
+                    <div className="flex items-center gap-4">
+                        <Skeleton className="h-20 w-20 rounded-full" />
+                        <div className="space-y-2">
+                            <Skeleton className="h-6 w-48" />
+                            <div className="flex items-center gap-4">
+                                <Skeleton className="h-4 w-32" />
+                                <Skeleton className="h-4 w-48" />
+                            </div>
+                        </div>
+                    </div>
+                    <Skeleton className="h-10 w-24" />
+                </div>
+
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Assigned App List</CardTitle>
+                        <CardDescription>List of apps assigned to this employee.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow className="hover:bg-transparent">
+                                    <TableHead>App Name</TableHead>
+                                    <TableHead>Pricing Type</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead>Assigned Date</TableHead>
+                                    <TableHead>End Date</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {Array.from({ length: 5 }).map((_, i) => (
+                                    <TableRow key={`skeleton-row-${i}`} className="hover:bg-transparent">
+                                        <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                                        <TableCell><Skeleton className="h-4 w-24" /></TableCell>
+                                        <TableCell><Skeleton className="h-4 w-20" /></TableCell>
+                                        <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                                        <TableCell><Skeleton className="h-4 w-28" /></TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
 
     if (!employee) {
         return <div>Employee not found.</div>;
@@ -111,7 +173,7 @@ export default function EmployeeDetailPage() {
                         <div className="flex items-center gap-4 text-muted-foreground mt-2">
                             <div className="flex items-center gap-2">
                                 <Building className="w-4 h-4" />
-                                <span>{employee.department}</span>
+                                <span>{employee.location || 'N/A'}</span>
                             </div>
                             <div className="flex items-center gap-2">
                                 <Mail className="w-4 h-4" />
@@ -120,23 +182,7 @@ export default function EmployeeDetailPage() {
                         </div>
                     </div>
                 </div>
-                <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-                    <DialogTrigger asChild>
-                        <Button variant="outline">
-                            <Edit className="mr-2 h-4 w-4" />
-                            Edit
-                        </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Edit {employee.name}</DialogTitle>
-                            <DialogDescription>
-                                Update the employee's information below.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <EmployeeForm onSave={handleSave} initialData={employee} />
-                    </DialogContent>
-                </Dialog>
+                {/* edit modal removed */}
             </div>
 
             <Card>
@@ -151,7 +197,9 @@ export default function EmployeeDetailPage() {
                                 <TableHead>App Name</TableHead>
                                 <TableHead>Pricing Type</TableHead>
                                 <TableHead>Status</TableHead>
+                                <TableHead>Assigned Date</TableHead>
                                 <TableHead>End Date</TableHead>
+                                <TableHead>Renewal Date</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -168,8 +216,8 @@ export default function EmployeeDetailPage() {
                                             {sub.name}
                                         </TableCell>
                                         <TableCell>
-                                            <Badge variant={sub.pricingType === 'per-seat' ? 'secondary' : 'outline'}>
-                                                {sub.pricingType === 'per-seat' ? 'Per-Seat' : 'Per-License'}
+                                            <Badge variant={sub.pricing_type === 'per-seat' ? 'secondary' : 'outline'}>
+                                                {sub.pricing_type === 'per-seat' ? 'Per-Seat' : 'Per-License'}
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
@@ -178,13 +226,19 @@ export default function EmployeeDetailPage() {
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
+                                            {formatDate(sub.assignedDate)}
+                                        </TableCell>
+                                        <TableCell>
                                             {formatDate(sub.endDate)}
+                                        </TableCell>
+                                        <TableCell>
+                                            {formatDate(sub.renewalDate)}
                                         </TableCell>
                                     </TableRow>
                                 ))
                             ) : (
                                 <TableRow className="hover:bg-transparent">
-                                    <TableCell colSpan={4} className="text-center">No assigned apps.</TableCell>
+                                    <TableCell colSpan={6} className="text-center">No assigned apps.</TableCell>
                                 </TableRow>
                             )}
                         </TableBody>

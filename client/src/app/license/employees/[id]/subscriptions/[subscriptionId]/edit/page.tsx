@@ -7,14 +7,21 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { employees as initialEmployees, subscriptions as initialSubscriptions } from '@/lib/mock-data';
-import type { Subscription, Employee, Account, AssignedUser } from '@/lib/types/index';
-import { User } from 'lucide-react';
+import type { Subscription, Employee, Account, AssignedUser } from '@/lib/types';
+import { CalendarIcon, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogTrigger } from '@/components/ui/dialog';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { graphqlQuery, INVENTORY_QUERIES, getSubscriptions, updateSubscription, updatePerSeatAssignedDate } from '@/lib/graphql-client';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { enUS, ja } from "date-fns/locale"
+import { format, parse } from "date-fns"
+import { useI18n } from "@/hooks/use-i18n"
+import { cn } from '@/lib/utils';
 
 const formSchema = z.object({
     endDate: z.string().optional(),
@@ -34,7 +41,7 @@ export default function EditEmployeeSubscriptionPage() {
     const subscriptionId = (params.subscriptionId ?? params.id) as string;
     const accountId = searchParams.get('accountId');
 
-    const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+    const [subscriptions, setSubscriptions] = useState<any[]>([]);
     const [employees, setEmployees] = useState<Employee[]>([]);
 
     const [employee, setEmployee] = useState<Employee | undefined>();
@@ -42,32 +49,50 @@ export default function EditEmployeeSubscriptionPage() {
     const [assignmentData, setAssignmentData] = useState<Partial<Account> | Partial<AssignedUser> | undefined>();
     const [isUnassignDialogOpen, setIsUnassignDialogOpen] = useState(false);
     const { toast } = useToast();
+    const { t } = useI18n();
+
+    const toYmd = (v: any): string => {
+        if (!v) return '';
+        const s = String(v);
+        if (s.includes('T')) return s.split('T')[0];
+        if (s.includes(' ')) return s.split(' ')[0];
+        return s.slice(0, 10);
+    };
 
     useEffect(() => {
-        const storedSubs = localStorage.getItem('subscriptions');
-        const storedEmps = localStorage.getItem('employees');
-        const subs = storedSubs ? JSON.parse(storedSubs) : initialSubscriptions;
-        const emps = storedEmps ? JSON.parse(storedEmps) : initialEmployees;
+        const load = async () => {
+            // fetch employees (for name display)
+            const empResp = await graphqlQuery(INVENTORY_QUERIES.GET_EMPLOYEES, { first: 1000, page: 1 });
+            const emps: Employee[] = (empResp?.data?.employees?.data || []).map((emp: any) => ({
+                id: emp.id,
+                employee_id: emp.employee_id,
+                name: emp.name,
+                email: emp.email || '',
+                location: emp.location || '',
+                org_unit_path: emp.org_unit_path || '',
+                projects: Array.isArray(emp.projects) ? (emp.projects.join(', ')) : (emp.projects || ''),
+            }));
+            setEmployees(emps);
+            const emp = emps.find(e => e.employee_id === employeeId);
+            setEmployee(emp);
 
-        setSubscriptions(subs);
-        setEmployees(emps);
+            // fetch subscriptions
+            const subs = await getSubscriptions();
+            setSubscriptions(subs || []);
+            const sub = (subs || []).find((s: any) => s.id === subscriptionId);
+            setSubscription(sub);
 
-        const emp = emps.find((e: Employee) => e.id === employeeId);
-        const sub = subs.find((s: Subscription) => s.id === subscriptionId);
-        console.log(subs, emps);
-
-        setEmployee(emp);
-        setSubscription(sub);
-
-        if (sub && emp) {
-            if (sub.pricingType === 'per-license' && accountId) {
-                const account = sub.accounts.find((a: { accountId: string; }) => a.accountId === accountId);
-                setAssignmentData(account);
-            } else if (sub.pricingType === 'per-seat') {
-                const userAssignment = sub.assignedUsers?.find((u: { employeeId: string; }) => u.employeeId === employeeId);
-                setAssignmentData(userAssignment);
+            if (sub && emp) {
+                if (sub.pricing_type === 'per-license' && accountId) {
+                    const license = (sub.licenses || []).find((a: any) => a.account_id === accountId);
+                    setAssignmentData(license ? { endDate: license.end_date || '', renewalDate: license.renewal_date || '' } : undefined);
+                } else if (sub.pricing_type === 'per-seat') {
+                    const assignedEmp = (sub.employees || []).find((e: any) => e.employee_id === emp.employee_id);
+                    setAssignmentData(assignedEmp?.assigned_at ? { assignedDate: toYmd(assignedEmp.assigned_at) } : undefined);
+                }
             }
-        }
+        };
+        load();
     }, [employeeId, subscriptionId, accountId]);
 
     const form = useForm<FormValues>({
@@ -83,52 +108,71 @@ export default function EditEmployeeSubscriptionPage() {
         if (assignmentData) {
             const defaultValues: FormValues = {};
             if ('endDate' in assignmentData && assignmentData.endDate) {
-                defaultValues.endDate = new Date(assignmentData.endDate).toISOString().split('T')[0];
+                const s = String(assignmentData.endDate);
+                defaultValues.endDate = s.includes('T') ? s.split('T')[0] : s;
             }
             if ('renewalDate' in assignmentData && assignmentData.renewalDate) {
-                defaultValues.renewalDate = new Date(assignmentData.renewalDate).toISOString().split('T')[0];
+                const s = String(assignmentData.renewalDate);
+                defaultValues.renewalDate = s.includes('T') ? s.split('T')[0] : s;
             }
             if ('assignedDate' in assignmentData && assignmentData.assignedDate) {
-                defaultValues.assignedDate = new Date(assignmentData.assignedDate).toISOString().split('T')[0];
+                defaultValues.assignedDate = toYmd((assignmentData as any).assignedDate);
             }
             form.reset(defaultValues);
         }
     }, [assignmentData, form]);
 
 
-    const handleSave = (data: FormValues) => {
-        const updatedSubscriptions = subscriptions.map(sub => {
-            if (sub.id === subscriptionId) {
-                if (sub.pricingType === 'per-license' && accountId) {
-                    const updatedAccounts = sub.accounts.map(acc => {
-                        if (acc.accountId === accountId) {
-                            return { ...acc, endDate: data.endDate, renewalDate: data.renewalDate };
-                        }
-                        return acc;
-                    });
-                    return { ...sub, accounts: updatedAccounts };
-                } else if (sub.pricingType === 'per-seat') {
-                    const updatedUsers = sub.assignedUsers?.map(user => {
-                        if (user.employeeId === employeeId) {
-                            return { ...user, assignedDate: data.assignedDate || new Date().toISOString() };
-                        }
-                        return user;
-                    });
-                    return { ...sub, assignedUsers: updatedUsers };
-                }
-            }
-            return sub;
-        });
+    const handleSave = async (data: FormValues) => {
+        if (!subscription) return;
+        if (subscription.pricing_type === 'per-license' && accountId) {
+            const target = (subscription.licenses || []).find((a: any) => a.account_id === accountId);
 
-        localStorage.setItem('subscriptions', JSON.stringify(updatedSubscriptions));
-        setSubscriptions(updatedSubscriptions);
-        // show success toast
+            const toDate = (s?: string | null) => (s ? new Date(s) : undefined);
+
+            const subscriptionData: any = {
+                serviceName: subscription.service_name,
+                vendor: subscription.vendor,
+                licenseType: subscription.license_type,
+                pricingType: subscription.pricing_type,
+                status: subscription.status,
+                category: subscription.category,
+                paymentMethod: subscription.payment_method,
+                cancellationDate: toDate(subscription.cancellation_date || undefined),
+                officialWebsite: subscription.official_website,
+                officialSupport: subscription.official_support,
+                notes: subscription.notes,
+                perSeatMonthlyPrice: subscription.per_seat_monthly_price ?? undefined,
+                perSeatYearlyPrice: subscription.per_seat_yearly_price ?? undefined,
+                perSeatCurrency: subscription.per_seat_currency ?? undefined,
+                licenses: [
+                    {
+                        id: target?.id,
+                        accountId: target?.account_id,
+                        unitPrice: target?.unit_price,
+                        currency: target?.currency,
+                        billingCycle: target?.billing_cycle,
+                        billingInterval: target?.billing_interval,
+                        startDate: toDate(target?.start_date || null),
+                        endDate: data.endDate ? new Date(data.endDate) : toDate(target?.end_date || null),
+                        renewalDate: data.renewalDate ? new Date(data.renewalDate) : toDate(target?.renewal_date || null),
+                        version: target?.version,
+                        licenseKey: target?.license_key,
+                        used: target?.used,
+                        assignedEmployee: target?.assigned_employee ? { employee_id: target.assigned_employee.employee_id } : undefined,
+                    },
+                ],
+            };
+            await updateSubscription(subscriptionId, subscriptionData);
+        } else if (subscription.pricing_type === 'per-seat') {
+            if (!employee) return;
+            const dateStr = (data.assignedDate && data.assignedDate.trim()) ? data.assignedDate : new Date().toISOString().split('T')[0];
+            await updatePerSeatAssignedDate(subscriptionId, employee.employee_id, dateStr);
+        }
+
         try {
             toast({ title: 'Updated', description: 'Subscription updated successfully' });
-        } catch (e) {
-            // swallow; toast may not be available in some edge cases
-        }
-        // Navigate back to the employee detail within the license section
+        } catch { }
         router.push(`/license/employees/${employeeId}`);
     };
 
@@ -137,41 +181,87 @@ export default function EditEmployeeSubscriptionPage() {
         setIsUnassignDialogOpen(true);
     }
 
-    const confirmUnassign = () => {
-        const updatedSubscriptions = subscriptions.map(sub => {
-            if (sub.id === subscriptionId) {
-                if (sub.pricingType === 'per-license' && accountId) {
-                    const updatedAccounts = sub.accounts.map(acc => {
-                        if (acc.accountId === accountId) {
-                            const { assignedUser, ...rest } = acc;
-                            return rest;
-                        }
-                        return acc;
-                    });
-                    return { ...sub, accounts: updatedAccounts };
-                } else if (sub.pricingType === 'per-seat') {
-                    const updatedUsers = sub.assignedUsers?.filter(user => user.employeeId !== employeeId);
-                    return { ...sub, assignedUsers: updatedUsers };
-                }
-            }
-            return sub;
-        });
+    const confirmUnassign = async () => {
+        if (!subscription) return;
+        if (subscription.pricing_type === 'per-license' && accountId) {
+            const target = (subscription.licenses || []).find((a: any) => a.account_id === accountId);
 
-        localStorage.setItem('subscriptions', JSON.stringify(updatedSubscriptions));
-        setSubscriptions(updatedSubscriptions);
-        // Set a flash message in sessionStorage so the employee detail page can show feedback
+            const toDate = (s?: string | null) => (s ? new Date(s) : undefined);
+
+            const subscriptionData: any = {
+                serviceName: subscription.service_name,
+                vendor: subscription.vendor,
+                licenseType: subscription.license_type,
+                pricingType: subscription.pricing_type,
+                status: subscription.status,
+                category: subscription.category,
+                paymentMethod: subscription.payment_method,
+                cancellationDate: toDate(subscription.cancellation_date || undefined),
+                officialWebsite: subscription.official_website,
+                officialSupport: subscription.official_support,
+                notes: subscription.notes,
+                perSeatMonthlyPrice: subscription.per_seat_monthly_price ?? undefined,
+                perSeatYearlyPrice: subscription.per_seat_yearly_price ?? undefined,
+                perSeatCurrency: subscription.per_seat_currency ?? undefined,
+                licenses: [
+                    {
+                        id: target?.id,
+                        accountId: target?.account_id,
+                        unitPrice: target?.unit_price,
+                        currency: target?.currency,
+                        billingCycle: target?.billing_cycle,
+                        billingInterval: target?.billing_interval,
+                        startDate: toDate(target?.start_date || null),
+                        endDate: toDate(target?.end_date || null),
+                        renewalDate: toDate(target?.renewal_date || null),
+                        version: target?.version,
+                        licenseKey: target?.license_key,
+                        used: target?.used,
+                        assignedEmployee: undefined,
+                    },
+                ],
+            };
+            await updateSubscription(subscriptionId, subscriptionData);
+        }
+
         try {
             sessionStorage.setItem('flash_unassign_message', 'Subscription unassigned successfully');
-        } catch (e) {
-            // ignore (SSR or storage disabled)
-        }
+        } catch { }
         setIsUnassignDialogOpen(false);
         router.push(`/license/employees/${employeeId}`);
     }
 
 
     if (!employee || !subscription) {
-        return <div>Loading...</div>;
+        return (
+            <div className="flex flex-col min-h-screen max-w-lg w-full m-auto bg-background">
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                        <User className="w-8 h-8" />
+                        <div className="space-y-2">
+                            <div className="h-6 w-48 bg-muted animate-pulse rounded" />
+                        </div>
+                    </div>
+                    <div className="h-10 w-24 bg-muted animate-pulse rounded" />
+                </div>
+                <Card>
+                    <CardHeader>
+                        <CardTitle>Assignment Information</CardTitle>
+                        <CardDescription>Edit the details of the subscription assigned to this employee.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="space-y-4">
+                            {Array.from({ length: 2 }).map((_, i) => (
+                                <div key={`row-${i}`} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="h-10 bg-muted animate-pulse rounded" />
+                                    <div className="h-10 bg-muted animate-pulse rounded" />
+                                </div>
+                            ))}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        );
     }
 
     return (
@@ -179,7 +269,7 @@ export default function EditEmployeeSubscriptionPage() {
             <div className="flex items-center justify-between mb-4">
                 <h1 className="text-3xl font-bold flex items-center gap-2">
                     <User className="w-8 h-8" />
-                    {employee.name} - {subscription.name}
+                    {employee.name} - {subscription.service_name}
                 </h1>
             </div>
 
@@ -191,46 +281,67 @@ export default function EditEmployeeSubscriptionPage() {
                             <CardDescription>Edit the details of the subscription assigned to this employee.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
-                            {subscription.pricingType === 'per-license' && (
+                            {subscription?.pricing_type === 'per-license' && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <FormField
-                                        control={form.control}
-                                        name="endDate"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>End Date</FormLabel>
-                                                <FormControl>
-                                                    <Input type="date" {...field} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                    <FormField
-                                        control={form.control}
-                                        name="renewalDate"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Renewal Date</FormLabel>
-                                                <FormControl>
-                                                    <Input type="date" {...field} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
+                                    <FormField control={form.control} name="endDate" render={({ field }) => (
+                                        <FormItem className="">
+                                            <FormLabel>End Date</FormLabel>
+                                            <Popover>
+                                                <PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("h-10 w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(parse(field.value, 'yyyy-MM-dd', new Date()), t('date.format'), { locale: t('date.locale') === 'en-US' ? enUS : ja }) : <span>{t('actions.pick_date')}</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value ? parse(field.value, 'yyyy-MM-dd', new Date()) : undefined} onSelect={(d) => field.onChange(d ? format(d, 'yyyy-MM-dd') : '')} initialFocus /></PopoverContent>
+                                            </Popover>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
+                                    <FormField control={form.control} name="renewalDate" render={({ field }) => (
+                                        <FormItem className="">
+                                            <FormLabel>Renewal Date</FormLabel>
+                                            <Popover>
+                                                <PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("h-10 w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(parse(field.value, 'yyyy-MM-dd', new Date()), t('date.format'), { locale: t('date.locale') === 'en-US' ? enUS : ja }) : <span>{t('actions.pick_date')}</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value ? parse(field.value, 'yyyy-MM-dd', new Date()) : undefined} onSelect={(d) => field.onChange(d ? format(d, 'yyyy-MM-dd') : '')} initialFocus /></PopoverContent>
+                                            </Popover>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )} />
                                 </div>
                             )}
-                            {subscription.pricingType === 'per-seat' && (
+                            {subscription?.pricing_type === 'per-seat' && (
                                 <FormField
                                     control={form.control}
                                     name="assignedDate"
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Assigned Date</FormLabel>
-                                            <FormControl>
-                                                <Input type="date" {...field} />
-                                            </FormControl>
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <FormControl>
+                                                        <Button
+                                                            variant={"outline"}
+                                                            className={cn(
+                                                                "h-10 w-full justify-start text-left font-normal",
+                                                                !field.value && "text-muted-foreground"
+                                                            )}
+                                                        >
+                                                            {field.value
+                                                                ? format(
+                                                                    parse(field.value, 'yyyy-MM-dd', new Date()),
+                                                                    t('date.format'),
+                                                                    { locale: t('date.locale') === 'en-US' ? enUS : ja }
+                                                                )
+                                                                : <span>{t('actions.pick_date')}</span>}
+                                                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                                        </Button>
+                                                    </FormControl>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-auto p-0" align="start">
+                                                    <Calendar
+                                                        mode="single"
+                                                        selected={field.value ? parse(field.value, 'yyyy-MM-dd', new Date()) : undefined}
+                                                        onSelect={(d) => field.onChange(d ? format(d, 'yyyy-MM-dd') : '')}
+                                                        initialFocus
+                                                    />
+                                                </PopoverContent>
+                                            </Popover>
                                             <FormMessage />
                                         </FormItem>
                                     )}
@@ -249,7 +360,7 @@ export default function EditEmployeeSubscriptionPage() {
                                     <DialogHeader>
                                         <DialogTitle>Confirm Unassign</DialogTitle>
                                         <DialogDescription>
-                                            Are you sure you want to unassign this subscription from {employee.name}? This action can be undone by reassigning.
+                                            Are you sure you want to unassign this subscription from {employee?.name}? This action can be undone by reassigning.
                                         </DialogDescription>
                                     </DialogHeader>
                                     <div className="flex justify-end gap-2 pt-4">
@@ -263,7 +374,9 @@ export default function EditEmployeeSubscriptionPage() {
                             <Button type="button" variant="outline" onClick={() => router.back()}>
                                 Cancel
                             </Button>
-                            <Button type="submit">Save</Button>
+                            <Button type="submit" disabled={form.formState.isSubmitting}>
+                                {form.formState.isSubmitting ? 'Saving…' : 'Save'}
+                            </Button>
                         </div>
                     </div>
                 </form>
@@ -271,3 +384,5 @@ export default function EditEmployeeSubscriptionPage() {
         </div>
     );
 }
+
+

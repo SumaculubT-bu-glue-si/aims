@@ -351,6 +351,17 @@ type Query {
     "Find a single corrective action by ID."
     correctiveAction(id: ID! @eq): CorrectiveAction @find
 
+    # Service Subscription queries
+    subscriptions: [ServiceSubscription!]! @all
+
+    getSubscription(id: ID!): ServiceSubscription
+        @field(
+            resolver: "Bu\\Server\\GraphQL\\Queries\\SubscriptionQuery@getSubscription"
+        )
+
+    searchEmployees(name: String!): [Employee!]!
+        @field(resolver: "Bu\\Server\\GraphQL\\Queries\\EmployeeQueries@search")
+
     # Employee Audit queries
     "Get available audit plans for employee selection."
     availableAuditPlans: [AvailableAuditPlan!]!
@@ -599,6 +610,12 @@ type Employee {
 
     "When the employee record was last updated."
     updated_at: DateTime!
+
+    serviceSubscriptions: [ServiceSubscription!]! @belongsToMany
+    assigned_at: DateTime
+        @field(
+            resolver: "Bu\\Server\\GraphQL\\Resolvers\\EmployeeFieldResolver@assignedAt"
+        )
 }
 
 "Location in the system."
@@ -1708,6 +1725,131 @@ input CorrectiveActionInput {
     notes: String
 }
 
+"A datetime string with format `Y-m-d H:i:s`, e.g. `2018-05-23 13:43:32`."
+scalar DateTime
+    @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\DateTime")
+
+"A date string with format `Y-m-d`, e.g. `2018-05-23`."
+scalar Date @scalar(class: "Nuwave\\Lighthouse\\Schema\\Types\\Scalars\\Date")
+
+type ServiceSubscription {
+    id: ID!
+    service_name: String!
+    vendor: String
+    license_type: String!
+    pricing_type: String!
+    status: String!
+    category: String
+    payment_method: String
+    cancellation_date: Date
+    official_website: String
+    official_support: String
+    notes: String
+    per_seat_monthly_price: Int
+    per_seat_yearly_price: Int
+    per_seat_currency: String
+    licenses: [License!]! @hasMany
+    employees: [Employee!]! @belongsToMany
+}
+
+type License {
+    id: ID!
+    service_subscription_id: Int!
+    used: Boolean!
+    assigned_employee: Employee @belongsTo(relation: "assignedEmployee")
+    account_id: String!
+    unit_price: Int!
+    currency: String!
+    billing_cycle: Int
+    billing_interval: String
+    start_date: Date
+    end_date: Date
+    renewal_date: Date
+    version: String
+    license_key: String
+}
+
+input CreateSubscriptionInput {
+    service_name: String!
+    vendor: String
+    license_type: String!
+    pricing_type: String!
+    status: String!
+    category: String
+    payment_method: String
+    cancellation_date: Date
+    official_website: String
+    official_support: String
+    notes: String
+    per_seat_monthly_price: Int
+    per_seat_yearly_price: Int
+    per_seat_currency: String
+    licenses: [CreateLicenseInput!]!
+}
+
+input UpdateSubscriptionInput {
+    service_name: String!
+    vendor: String
+    license_type: String!
+    pricing_type: String!
+    status: String!
+    category: String
+    payment_method: String
+    cancellation_date: Date
+    official_website: String
+    official_support: String
+    notes: String
+    per_seat_monthly_price: Int
+    per_seat_yearly_price: Int
+    per_seat_currency: String
+    licenses: [UpdateLicenseInput!]!
+}
+
+input CreateLicenseInput {
+    account_id: String!
+    unit_price: Float!
+    currency: String!
+    billing_cycle: Int
+    billing_interval: String
+    start_date: Date
+    end_date: Date
+    renewal_date: Date
+    version: String
+    license_key: String
+    used: Boolean
+    assigned_employee: EmployeeInput
+}
+
+input UpdateLicenseInput {
+    id: ID
+    account_id: String!
+    unit_price: Float!
+    currency: String!
+    billing_cycle: Int
+    billing_interval: String
+    start_date: Date
+    end_date: Date
+    renewal_date: Date
+    version: String
+    license_key: String
+    used: Boolean
+    assigned_employee: EmployeeInput
+}
+
+input EmployeeInput {
+    employee_id: String
+    name: String
+    email: String
+    location: String
+    projects: String
+    org_unit_path: String
+}
+
+type AssignEmployeeResponse {
+    success: Boolean!
+    message: String!
+}
+
 "Indicates what fields are available at the top level of a mutation operation."
 type Mutation {
     # Authentication mutations
@@ -1718,6 +1860,7 @@ type Mutation {
     "Logout the current user"
     logout: Boolean!
         @field(resolver: "App\\GraphQL\\Mutations\\AuthMutations@logout")
+        @guard
 
     # User mutations
     "Create a new user."
@@ -1985,6 +2128,54 @@ type Mutation {
             resolver: "Bu\\Server\\GraphQL\\Mutations\\CorrectiveActionAssignmentMutations@updateStatus"
         )
         @guard
+
+    # Service Subscription mutations
+    insertSubscriptionWithLicenses(
+        object: CreateSubscriptionInput!
+    ): ServiceSubscription!
+        @field(
+            resolver: "Bu\\Server\\GraphQL\\Mutations\\SubscriptionMutations@create"
+        )
+
+    updateSubscription(
+        id: ID! @rules(apply: ["required", "exists:service_subscriptions,id"])
+        input: UpdateSubscriptionInput!
+    ): ServiceSubscription!
+        @field(
+            resolver: "Bu\\Server\\GraphQL\\Mutations\\SubscriptionMutations@update"
+        )
+
+    assignEmployeeToSubscription(
+        subscription_id: ID!
+        employee_id: String!
+        license_id: ID
+    ): AssignEmployeeResponse!
+        @field(
+            resolver: "Bu\\Server\\GraphQL\\Mutations\\EmployeeMutations@assignEmployee"
+        )
+
+    unassignEmployeeFromSubscription(
+        subscription_id: ID!
+        employee_id: String!
+    ): AssignEmployeeResponse!
+        @field(
+            resolver: "Bu\\Server\\GraphQL\\Mutations\\EmployeeMutations@unassignEmployee"
+        )
+
+    "Update assigned date for a per-seat subscription (pivot created_at)."
+    updatePerSeatAssignedDate(
+        subscription_id: ID!
+        employee_id: String!
+        assigned_date: Date!
+    ): AssignEmployeeResponse!
+        @field(
+            resolver: "Bu\\Server\\GraphQL\\Mutations\\EmployeeMutations@updatePerSeatAssignedDate"
+        )
+
+    deleteLicense(id: ID!): Boolean!
+        @field(
+            resolver: "Bu\\Server\\GraphQL\\Mutations\\LicenseMutations@delete"
+        )
 
     "Update the status of a corrective action for an employee."
     updateEmployeeCorrectiveActionStatus(

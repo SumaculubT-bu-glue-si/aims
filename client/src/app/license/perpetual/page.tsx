@@ -7,46 +7,79 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import SubscriptionForm from "@/components/subscription-form";
 import SubscriptionList from "@/components/subscription-list";
 import { PlusCircle } from "lucide-react";
-import { Employee, Subscription } from "@/lib/types/index";
+import { Employee, Subscription } from "@/lib/types";
 import { employees as initialEmployees, subscriptions as initialSubscriptions } from '@/lib/mock-data';
 import { toast } from "@/hooks/use-toast";
+import { getSubscriptions } from "@/lib/graphql-client";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function perpetualPage() {
     const [isPerpetualModalOpen, setIsPerpetualModalOpen] = useState(false);
     const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-    const [employees, setEmployees] = useState<Employee[]>([]);
+    const [loading, setLoading] = useState(false);
 
-    const perpetualOnly = subscriptions.filter(s => s.licenseType === 'perpetual');
-
-    const handleSave = (data: Partial<Subscription>) => {
-        const newSubscription = {
-            ...data,
-            id: `sub-${new Date().getTime()}`,
-            assignedUsers: data.assignedUsers || [],
-            accounts: data.accounts || [],
-        } as Subscription;
-
-        const newSubscriptions = [...subscriptions, newSubscription];
-        setSubscriptions(newSubscriptions);
-        localStorage.setItem('subscriptions', JSON.stringify(newSubscriptions));
-
-        setIsPerpetualModalOpen(false);
+    const fetchSubscriptions = async () => {
+        setLoading(true);
         try {
-            toast({ title: 'Created', description: 'Perpetual ubscription created successfully' });
-        } catch (e) {
-            // ignore
+            const subs = await getSubscriptions();
+            console.log('subs', subs);
+
+            // transform server shape (snake_case) into client Subscription shape (camelCase)
+            const filtered = (subs || []).filter((s: any) => s.license_type === 'perpetual');
+            const mapped = filtered.map((s: any) => ({
+                id: s.id,
+                name: s.service_name || '',
+                vendor: s.vendor || '',
+                licenseType: s.license_type || 'subscription',
+                pricingType: s.pricing_type || 'per-license',
+                status: s.status || 'active',
+                category: s.category || '',
+                paymentMethod: s.payment_method || '',
+                cancellationDate: s.cancellation_date || undefined,
+                officialWebsite: s.official_website || undefined,
+                officialSupport: s.official_support || undefined,
+                notes: s.notes || '',
+                employees: s.employees || [],
+                // map licenses -> accounts (client expects accounts array)
+                accounts: (s.licenses || []).map((l: any) => ({
+                    id: l.id,
+                    accountId: l.account_id,
+                    amount: l.unit_price,
+                    currency: l.currency,
+                    billingCycle: l.billing_cycle,
+                    billingInterval: l.billing_interval,
+                    startDate: l.start_date,
+                    endDate: l.end_date,
+                    renewalDate: l.renewal_date,
+                    version: l.version,
+                    licenseKey: l.license_key,
+                    used: l.used,
+                    assignedEmployee: l.assigned_employee,
+                })),
+                // assignedUsers: [],
+            } as unknown as Subscription));
+
+            setSubscriptions(mapped);
+        } catch (error) {
+            toast({
+                title: "Error fetching perpetuals",
+                description: "Could not fetch perpetuals from the database.",
+                variant: "destructive",
+            });
+        } finally {
+            setLoading(false);
         }
     };
 
     useEffect(() => {
-        const storedEmployees = localStorage.getItem('employees');
-        if (storedEmployees) {
-            setEmployees(JSON.parse(storedEmployees));
-        } else {
-            setEmployees(initialEmployees);
-            localStorage.setItem('employees', JSON.stringify(initialEmployees));
-        }
+        fetchSubscriptions();
     }, []);
+
+
+    const handleSave = () => {
+        fetchSubscriptions();
+        setIsPerpetualModalOpen(false);
+    };
 
     return (
         <>
@@ -68,12 +101,22 @@ export default function perpetualPage() {
                         <SubscriptionForm
                             onSave={handleSave}
                             onCancel={() => setIsPerpetualModalOpen(false)}
+                            mode="create"
                             initialData={{ licenseType: 'perpetual', status: 'active', pricingType: 'per-license' }}
                         />
                     </DialogContent>
                 </Dialog>
             </div>
-            <SubscriptionList subscriptions={perpetualOnly} employees={employees} />
+            {loading ? (
+                <div className="space-y-2">
+                    <Skeleton className="h-6 w-1/3" />
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-8 w-full" />
+                    <Skeleton className="h-8 w-full" />
+                </div>
+            ) : (
+                <SubscriptionList subscriptions={subscriptions as any} />
+            )}
         </>
     )
 }

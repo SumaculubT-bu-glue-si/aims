@@ -85,25 +85,25 @@ function normalizeStatus(value: any): string {
   const v = value.trim();
 
   // Keep Japanese statuses as-is since frontend expects them
-  if (v === '返却済') return '返却済';
-  if (v === '廃止') return '廃止';
-  if (v === '保管(使用無)') return '保管(使用無)';
-  if (v === '利用中') return '利用中';
-  if (v === '保管中') return '保管中';
-  if (v === '貸出中') return '貸出中';
-  if (v === '故障中') return '故障中';
-  if (v === '利用予約') return '利用予約';
+  if (v === '???') return '???';
+  if (v === '??') return '??';
+  if (v === '??(???)') return '??(???)';
+  if (v === '???') return '???';
+  if (v === '???') return '???';
+  if (v === '???') return '???';
+  if (v === '???') return '???';
+  if (v === '????') return '????';
 
   // Common English variations - convert to Japanese equivalents
   const lower = v.toLowerCase();
-  if (lower === 'returned') return '返却済';
-  if (lower === 'abolished') return '廃止';
-  if (lower === 'stored - not in use') return '保管(使用無)';
-  if (lower === 'in use') return '利用中';
-  if (lower === 'in storage') return '保管中';
-  if (lower === 'on loan') return '貸出中';
-  if (lower === 'broken') return '故障中';
-  if (lower === 'reserved for use') return '利用予約';
+  if (lower === 'returned') return '???';
+  if (lower === 'abolished') return '??';
+  if (lower === 'stored - not in use') return '??(???)';
+  if (lower === 'in use') return '???';
+  if (lower === 'in storage') return '???';
+  if (lower === 'on loan') return '???';
+  if (lower === 'broken') return '???';
+  if (lower === 'reserved for use') return '????';
 
   return v; // fallback to original
 }
@@ -822,9 +822,9 @@ export async function createAuditPlan(auditPlanData: {
     }
   `;
 
-  console.log('🚀 Creating audit plan with data:', auditPlanData);
-  console.log('📡 Using GraphQL endpoint:', GRAPHQL_ENDPOINT);
-  console.log('🔍 Mutation:', mutation);
+  console.log('?? Creating audit plan with data:', auditPlanData);
+  console.log('?? Using GraphQL endpoint:', GRAPHQL_ENDPOINT);
+  console.log('?? Mutation:', mutation);
 
   try {
     const requestBody = {
@@ -839,7 +839,7 @@ export async function createAuditPlan(auditPlanData: {
       },
     };
 
-    console.log('📤 Request body:', JSON.stringify(requestBody, null, 2));
+    console.log('?? Request body:', JSON.stringify(requestBody, null, 2));
 
     const response = await fetch(GRAPHQL_ENDPOINT, {
       method: 'POST',
@@ -851,31 +851,31 @@ export async function createAuditPlan(auditPlanData: {
       body: JSON.stringify(requestBody),
     });
 
-    console.log('📥 Response status:', response.status);
-    console.log('📥 Response headers:', Object.fromEntries(response.headers.entries()));
+    console.log('?? Response status:', response.status);
+    console.log('?? Response headers:', Object.fromEntries(response.headers.entries()));
 
     const responseText = await response.text();
-    console.log('📥 Response text (first 500 chars):', responseText.substring(0, 500));
+    console.log('?? Response text (first 500 chars):', responseText.substring(0, 500));
 
     let result;
     try {
       result = JSON.parse(responseText);
-      console.log('✅ Response parsed as JSON successfully');
+      console.log('? Response parsed as JSON successfully');
     } catch (parseError) {
-      console.error('❌ Failed to parse response as JSON:', parseError);
-      console.error('❌ Response text:', responseText);
+      console.error('? Failed to parse response as JSON:', parseError);
+      console.error('? Response text:', responseText);
       throw new Error(`Invalid JSON response: ${responseText.substring(0, 200)}`);
     }
 
     if (result.errors) {
-      console.error('❌ GraphQL errors:', result.errors);
+      console.error('? GraphQL errors:', result.errors);
       throw new Error(result.errors[0]?.message || 'Failed to create audit plan');
     }
 
-    console.log('✅ Audit plan created successfully:', result.data);
+    console.log('? Audit plan created successfully:', result.data);
     return { success: true, data: result.data.createAuditPlan };
   } catch (error) {
-    console.error('❌ Error creating audit plan:', error);
+    console.error('? Error creating audit plan:', error);
     return { 
       success: false, 
       error: error instanceof Error ? error.message : 'Failed to create audit plan' 
@@ -939,10 +939,10 @@ export async function updateAuditAsset(auditAssetId: string, updateData: {
       current_location: updateData.current_location,
       current_user: updateData.current_user,
     };
-    
+
     console.log('GraphQL mutation:', mutation);
     console.log('GraphQL variables:', variables);
-    
+
     const response = await fetch(GRAPHQL_ENDPOINT, {
       method: 'POST',
       headers: {
@@ -1053,9 +1053,9 @@ export async function getAuditPlans() {
     return { success: true, data: result.data.auditPlans.data };
   } catch (error) {
     console.error('Error fetching audit plans:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to fetch audit plans' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch audit plans'
     };
   }
 }
@@ -1146,9 +1146,9 @@ export async function getCorrectiveActions(auditPlanId?: string, status?: string
     return { success: true, data: result.data.correctiveActions.data };
   } catch (error) {
     console.error('Error fetching corrective actions:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to fetch corrective actions' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to fetch corrective actions'
     };
   }
 }
@@ -1230,9 +1230,9 @@ export async function createCorrectiveAction(actionData: {
     return { success: true, data: result.data.createCorrectiveAction };
   } catch (error) {
     console.error('Error creating corrective action:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to create corrective action' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to create corrective action'
     };
   }
 }
@@ -1314,9 +1314,9 @@ export async function updateCorrectiveAction(id: string, actionData: {
     return { success: true, data: result.data.updateCorrectiveAction };
   } catch (error) {
     console.error('Error updating corrective action:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to update corrective action' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update corrective action'
     };
   }
 }
@@ -1390,9 +1390,9 @@ export async function updateCorrectiveActionStatus(id: string, status: string, n
     return { success: true, data: result.data.updateCorrectiveActionStatus };
   } catch (error) {
     console.error('Error updating corrective action status:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to update corrective action status' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update corrective action status'
     };
   }
 }
@@ -1426,9 +1426,9 @@ export async function deleteCorrectiveAction(id: string) {
     return { success: true, data: result.data.deleteCorrectiveAction };
   } catch (error) {
     console.error('Error deleting corrective action:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to delete corrective action' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to delete corrective action'
     };
   }
 }
@@ -1494,10 +1494,10 @@ export async function assignCorrectiveAction(correctiveActionId: string, assigne
       },
       body: JSON.stringify({
         query: mutation,
-        variables: { 
+        variables: {
           corrective_action_id: correctiveActionId,
           assigned_to_employee_id: assignedToEmployeeId,
-          notes 
+          notes
         },
       }),
     });
@@ -1511,9 +1511,9 @@ export async function assignCorrectiveAction(correctiveActionId: string, assigne
     return { success: true, data: result.data.assignCorrectiveAction };
   } catch (error) {
     console.error('Error assigning corrective action:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to assign corrective action' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to assign corrective action'
     };
   }
 }
@@ -1589,9 +1589,9 @@ export async function updateCorrectiveActionAssignmentStatus(id: string, status:
     return { success: true, data: result.data.updateCorrectiveActionAssignmentStatus };
   } catch (error) {
     console.error('Error updating corrective action assignment status:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to update corrective action assignment status' 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to update corrective action assignment status'
     };
   }
 }
@@ -1749,6 +1749,127 @@ export async function getEmployeeCorrectiveActions(employeeId: string, auditPlan
     };
   }
 }
+  
+export async function createSubscription(
+  subscriptionData: {
+    serviceName: string;
+    vendor?: string;
+    licenseType: 'subscription' | 'perpetual';
+    pricingType: 'per-license' | 'per-seat';
+    status: 'active' | 'inactive';
+    category?: string;
+    paymentMethod?: string;
+    cancellationDate?: Date | undefined;
+    officialWebsite?: string;
+    officialSupport?: string;
+    notes?: string;
+    perSeatMonthlyPrice?: number;
+    perSeatYearlyPrice?: number;
+    perSeatCurrency?: 'JPY' | 'USD';
+    licenses: {
+      id: string;
+      accountId: string;
+      unitPrice: number;
+      currency: 'JPY' | 'USD';
+      billingCycle?: number;
+      billingInterval?: 'day' | 'week' | 'month' | 'year';
+      startDate?: Date | undefined;
+      endDate?: Date | undefined;
+      renewalDate?: Date | undefined;
+      version?: string;
+      licenseKey?: string;
+      used?: boolean;
+      assignedEmployee?: any;
+    }[];
+  }
+) {
+  const mutation = `
+    mutation InsertSubscriptionWithLicenses($subscriptionData: CreateSubscriptionInput!) {
+      insertSubscriptionWithLicenses(object: $subscriptionData) {
+        id
+        service_name
+        per_seat_monthly_price
+        per_seat_yearly_price
+        per_seat_currency
+        licenses {
+          id
+          account_id
+          unit_price
+        }
+      }
+    }
+  `;
+
+  const toDateString = (d?: Date) => d ? d.toISOString().split("T")[0] : null;
+
+  const transformedData = {
+    service_name: subscriptionData.serviceName,
+    vendor: subscriptionData.vendor,
+    license_type: subscriptionData.licenseType,
+    pricing_type: subscriptionData.pricingType,
+    status: subscriptionData.status,
+    category: subscriptionData.category,
+    payment_method: subscriptionData.paymentMethod,
+    cancellation_date: toDateString(subscriptionData.cancellationDate),
+    official_website: subscriptionData.officialWebsite,
+    official_support: subscriptionData.officialSupport,
+    notes: subscriptionData.notes,
+    per_seat_monthly_price: subscriptionData.perSeatMonthlyPrice,
+    per_seat_yearly_price: subscriptionData.perSeatYearlyPrice,
+    per_seat_currency: subscriptionData.perSeatCurrency ? (subscriptionData.perSeatCurrency as string).toLowerCase() : undefined,
+    licenses: subscriptionData.licenses.map(license => {
+      const ae: any = license.assignedEmployee as any;
+      const employeeId = ae?.employee_id ?? ae?.employeeId;
+      return ({
+        account_id: license.accountId,
+        unit_price: license.unitPrice,
+        currency: license.currency,
+        billing_cycle: license.billingCycle,
+        billing_interval: license.billingInterval,
+        start_date: toDateString(license.startDate),
+        end_date: toDateString(license.endDate),
+        renewal_date: toDateString(license.renewalDate),
+        version: license.version,
+        license_key: license.licenseKey,
+        used: license.used,
+        assigned_employee: employeeId ? { employee_id: employeeId } : undefined,
+      });
+    }),
+  };
+  console.log(transformedData)
+
+  try {
+    const response = await fetch(GRAPHQL_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({ 
+        query: mutation, 
+        variables: { 
+          subscriptionData: transformedData
+        } 
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Network response was not ok, status: ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    if (result.errors) {
+      throw new Error(result.errors.map((err: any) => err.message).join(', '));
+    }
+
+    // Assuming the server returns the inserted subscription object directly
+    return result.data.insertSubscriptionWithLicenses;
+
+  } catch (error) {
+    throw new Error('Error creating subscription');
+  }
+}
 
 export async function updateEmployeeCorrectiveActionStatus(
   actionId: string, 
@@ -1805,25 +1926,240 @@ export async function updateEmployeeCorrectiveActionStatus(
         query: mutation,
         variables: {
           action_id: actionId,
-          status,
-          notes,
+          status: status,
+          notes: notes,
           employee_id: employeeId
         },
       }),
     });
 
+    if (!response.ok) {
+      throw new Error(`Network response was not ok, status: ${response.status}`);
+    }
+
     const result = await response.json();
 
     if (result.errors) {
-      throw new Error(result.errors[0]?.message || 'Failed to update corrective action status');
+      throw new Error(result.errors.map((err: any) => err.message).join(', '));
     }
 
-    return { success: true, data: result.data.updateEmployeeCorrectiveActionStatus };
+    // Assuming the server returns the inserted subscription object directly
+    return result.data.insertSubscriptionWithLicenses;
+
   } catch (error) {
-    console.error('Error updating corrective action status:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Failed to update corrective action status' 
-    };
+    throw new Error('Error creating subscription');
   }
+}
+
+export async function getSubscriptions() {
+  const query = `
+    query GetSubscriptions {
+      subscriptions {
+        id
+        service_name
+        vendor
+        license_type
+        pricing_type
+        status
+        category
+        payment_method
+        cancellation_date
+        official_website
+        official_support
+        notes
+        per_seat_monthly_price
+        per_seat_yearly_price
+        per_seat_currency
+        employees {
+          id
+          employee_id
+          name
+          email
+          location
+          assigned_at
+        }
+        licenses {
+          id
+          account_id
+          unit_price
+          currency
+          billing_cycle
+          billing_interval
+          start_date
+          end_date
+          renewal_date
+          version
+          license_key
+          used
+          assigned_employee {
+            id
+            employee_id
+            name
+            email
+            location
+            org_unit_path
+            projects
+          }
+        }
+      }
+    }
+  `;
+
+  const response = await graphqlQuery(query);
+  return response.data.subscriptions;
+}
+
+export async function updateSubscription(id: string, subscriptionData: any) {
+  const mutation = `
+    mutation UpdateSubscription($id: ID!, $input: UpdateSubscriptionInput!) {
+      updateSubscription(id: $id, input: $input) {
+        id
+        service_name
+        status
+        pricing_type
+        license_type
+        vendor
+        category
+        payment_method
+        cancellation_date
+        official_website
+        official_support
+        notes
+        per_seat_monthly_price
+        per_seat_yearly_price
+        per_seat_currency
+        licenses {
+          id
+          account_id
+          unit_price
+          currency
+          billing_cycle
+          billing_interval
+          start_date
+          end_date
+          renewal_date
+          version
+          license_key
+          assigned_employee {
+            id
+            employee_id
+            name
+            email
+            location
+            org_unit_path
+            projects
+          }
+          used
+        }
+        employees {
+          id
+          employee_id
+          name
+          location
+          org_unit_path
+          projects
+          email
+        }
+      }
+    }
+  `;
+
+  // Transform data to match the GraphQL input structure (snake_case)
+  const toDateString = (d?: Date) => d ? d.toISOString().split("T")[0] : null;
+
+  const transformedData = {
+    service_name: subscriptionData.serviceName,
+    vendor: subscriptionData.vendor,
+    license_type: subscriptionData.licenseType,
+    pricing_type: subscriptionData.pricingType,
+    status: subscriptionData.status,
+    category: subscriptionData.category,
+    payment_method: subscriptionData.paymentMethod,
+    cancellation_date: toDateString(subscriptionData.cancellationDate),
+    official_website: subscriptionData.officialWebsite,
+    official_support: subscriptionData.officialSupport,
+    notes: subscriptionData.notes,
+    per_seat_monthly_price: subscriptionData.perSeatMonthlyPrice,
+    per_seat_yearly_price: subscriptionData.perSeatYearlyPrice,
+    per_seat_currency: subscriptionData.perSeatCurrency ? (subscriptionData.perSeatCurrency as string).toLowerCase() : undefined,
+    licenses: subscriptionData.licenses?.map((license: any) => {
+      const ae: any = license.assignedEmployee as any;
+      const employeeId = ae?.employee_id ?? ae?.employeeId;
+      return ({
+        id: license.id,
+        account_id: license.accountId,
+        unit_price: license.unitPrice,
+        currency: license.currency,
+        billing_cycle: license.billingCycle,
+        billing_interval: license.billingInterval,
+        start_date: toDateString(license.startDate),
+        end_date: toDateString(license.endDate),
+        renewal_date: toDateString(license.renewalDate),
+        version: license.version,
+        license_key: license.licenseKey,
+        used: license.used,
+        assigned_employee: employeeId ? { employee_id: employeeId } : undefined,
+      });
+    }) || [],
+  };
+
+  console.log('Update subscription variables:', { id, input: transformedData });
+
+  const response = await graphqlQuery(mutation, { id, input: transformedData });
+
+  console.log('Update subscription response:', response);
+
+  if (response.errors) {
+    console.error('GraphQL errors:', response.errors);
+    throw new Error(response.errors[0]?.message || 'Failed to update subscription');
+  }
+
+  if (!response.data) {
+    throw new Error('No data returned from update subscription mutation');
+  }
+
+  if (!response.data.updateSubscription) {
+    throw new Error('updateSubscription field not found in response data');
+  }
+
+  return response.data.updateSubscription;
+}
+
+export async function graphqlFetch(query: string, variables?: any) {
+  const res = await fetch(GRAPHQL_ENDPOINT, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ query, variables }),
+  });
+  const json = await res.json();
+  if (json.errors) {
+    throw new Error(json.errors.map((e: any) => e.message).join(', '));
+  }
+  return json.data;
+}
+
+// Update per-seat assigned date (pivot created_at)
+export async function updatePerSeatAssignedDate(subscriptionId: string, employeeId: string, assignedDate: string) {
+  const mutation = `
+    mutation UpdatePerSeatAssignedDate($subscription_id: ID!, $employee_id: String!, $assigned_date: Date!) {
+      updatePerSeatAssignedDate(subscription_id: $subscription_id, employee_id: $employee_id, assigned_date: $assigned_date) {
+        success
+        message
+      }
+    }
+  `;
+
+  const res = await graphqlQuery(mutation, {
+    subscription_id: subscriptionId,
+    employee_id: employeeId,
+    assigned_date: assignedDate,
+  });
+
+  if (res.errors) {
+    throw new Error(res.errors[0]?.message || 'Failed to update assigned date');
+  }
+  return res.data?.updatePerSeatAssignedDate;
+
 }
