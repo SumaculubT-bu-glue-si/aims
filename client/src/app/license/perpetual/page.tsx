@@ -12,8 +12,10 @@ import { employees as initialEmployees, subscriptions as initialSubscriptions } 
 import { toast } from "@/hooks/use-toast";
 import { getSubscriptions } from "@/lib/graphql-client";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useI18n } from "@/hooks/use-i18n";
 
 export default function perpetualPage() {
+    const { t } = useI18n();
     const [isPerpetualModalOpen, setIsPerpetualModalOpen] = useState(false);
     const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
     const [loading, setLoading] = useState(false);
@@ -88,14 +90,14 @@ export default function perpetualPage() {
                     <DialogTrigger asChild>
                         <Button>
                             <PlusCircle className="mr-2 h-4 w-4" />
-                            Add Perpetual
+                            {t('pages.perpetual.add_button')}
                         </Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
-                            <DialogTitle>Add New Perpetual License</DialogTitle>
+                            <DialogTitle>{t('pages.perpetual.create_dialog.title')}</DialogTitle>
                             <DialogDescription>
-                                Fill in the details for the new perpetual license.
+                                {t('pages.perpetual.create_dialog.description')}
                             </DialogDescription>
                         </DialogHeader>
                         <SubscriptionForm

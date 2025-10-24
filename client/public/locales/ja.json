@@ -115,6 +115,10 @@
     "entries_info": "{{startItem}} - {{endItem}} / 全 {{totalCount}} 件",
     "no_results_found": "結果が見つかりませんでした。",
     "not_applicable": "該当なし",
+    "per_month": "/ 月",
+    "per_year": "/ 年",
+    "or": "または",
+    "no_notes_available": "備考はありません。",
     "page_in_preparation": "このページは現在準備中です。",
     "page_info": "ページ {{currentPage}} / 全 {{totalPages}} ページ",
     "verified": "認証済み"
@@ -198,6 +202,15 @@
     "inventory": "資産台帳",
     "user_assets": "貸出・持出登録",
     "optimize_ai": "AI最適化",
+    "switch_system": "システムを切り替え",
+    "systems": {
+      "license": "ライセンス管理",
+      "compliance": "法令管理",
+      "server": "サーバー管理",
+      "pc": "PC管理",
+      "router": "ルーター管理",
+      "smartphone": "スマートフォン管理"
+    },
     "compliance": "法令管理",
     "audits": "棚卸し",
     "audit_prep": "準備",
@@ -212,7 +225,17 @@
     "manage_system_users": "システムユーザー管理",
     "manage_asset_fields": "資産項目設定",
     "data_import": "データインポート",
-    "activity_logs": "アクティビティログ"
+    "activity_logs": "アクティビティログ",
+    "license_dashboard": "ダッシュボード",
+    "license_subscriptions": "サブスクリプション",
+    "license_perpetual": "永続ライセンス",
+    "license_employees": "従業員",
+    "license_gws": "Google Workspace",
+    "compliance_dashboard": "ダッシュボード",
+    "compliance_audits": "監査",
+    "compliance_reports": "レポート",
+    "compliance_policies": "ポリシー",
+    "compliance_standards": "基準"
   },
   "header": {
     "change_language": "言語切り替え",
@@ -287,6 +310,10 @@
     "action": "アクション",
     "assignee": "担当者",
     "status": "状態",
+    "status_values": {
+      "active": "有効",
+      "inactive": "無効"
+    },
     "statuses": {
       "all_status": "すべての状態",
       "active_only": "利用中・貸出中のみ",
@@ -332,6 +359,64 @@
     }
   },
   "pages": {
+    "subscription_detail": {
+      "edit_title": "{{service}} を編集",
+      "edit_desc": "以下のアプリ情報を更新してください。",
+      "cancellation_scheduled": "解約予定:",
+      "monthly_cost_title": "月額費用（JPY換算）",
+      "monthly_cost_note_per_seat": "割り当て済みユーザーの合計",
+      "monthly_cost_note_per_license": "すべてのアカウントの合計",
+      "assigned_users_title": "割り当てユーザー",
+      "license_status_title": "ライセンス状況",
+      "users_label": "ユーザー",
+      "used_total_label": "使用中 / 合計",
+      "usage_rate_title": "利用率",
+      "assigned_user_list_title": "割り当てユーザー一覧",
+      "assigned_user_list_desc": "このサービスを使用している従業員です。",
+      "assign_user_button": "ユーザーを割り当て",
+      "table": {
+        "name": "氏名",
+        "assigned_date": "割り当て日",
+        "assigned_to": "割り当て先",
+        "unit_price": "単価",
+        "license_key": "ライセンスキー",
+        "account_id": "アカウントID"
+      },
+      "no_users_assigned": "割り当てられているユーザーはいません。",
+      "unassign_user_title": "ユーザーの割り当て解除",
+      "unassign_user_confirm": "{{service}} から {{name}} の割り当てを解除しますか？",
+      "removing": "削除中...",
+      "confirm_remove": "削除を確認",
+      "used_license_list_title": "使用中ライセンス一覧",
+      "used_license_list_desc": "現在使用中のライセンスと紐づく従業員/デバイスです。",
+      "no_users": "ユーザーはいません。",
+      "unused_license_list_title": "未使用ライセンス一覧",
+      "unused_license_list_desc": "まだ割り当てられていない契約済みライセンスです。",
+      "assign_button": "割り当て",
+      "license_assigned_title": "ライセンスを割り当てました",
+      "license_assigned_desc": "{{name}} にライセンスを割り当てました。",
+      "no_unused_licenses": "未使用のライセンスはありません。",
+      "delete_license_title": "ライセンスの削除",
+      "delete_license_confirm": "ライセンス {{accountId}} を削除しますか？",
+      "deleting": "削除中...",
+      "confirm_delete": "削除を確認",
+      "service_overview_title": "サービス概要",
+      "vendor_label": "ベンダー:",
+      "category_label": "カテゴリ:",
+      "contract_information_title": "契約情報",
+      "price_per_user_label": "ユーザー単価:",
+      "payment_method_label": "支払方法:",
+      "related_links_title": "関連リンク",
+      "official_website_button": "公式サイト",
+      "support_page_button": "サポートページ",
+      "employee_combobox": {
+        "placeholder": "従業員名で検索...",
+        "searching": "検索中...",
+        "min_chars": "2文字以上入力して検索してください...",
+        "no_results": "従業員が見つかりません。"
+      },
+      "every_x": "{{count}}{{unit}}ごと"
+    },
     "dashboard": {
       "total_assets": "総資産数",
       "from_last_month": "先月から+2.1%",
@@ -350,6 +435,145 @@
       "cost": "コスト",
       "days": "日",
       "assets": "資産"
+    },
+    "subscriptions": {
+      "title": "サブスクリプション",
+      "description": "拠点・プロジェクト別の有効なサブスクリプション",
+      "table": {
+        "name": "名称",
+        "type": "種別",
+        "monthly_cost": "月額コスト",
+        "service_name": "サービス名",
+        "cost_price": "コスト/価格",
+        "price": "価格",
+        "licenses": "ライセンス",
+        "usage_rate": "利用率",
+        "status": "状態"
+      },
+      "add_button": "サブスクリプションを追加",
+      "create_dialog": {
+        "title": "新規サブスクリプションの追加",
+        "description": "新しいサブスクリプションの詳細を入力してください。"
+      },
+      "form": {
+        "basic": {
+          "title": "基本情報",
+          "description": "管理対象のアプリの基本情報を入力してください。"
+        },
+        "section_per_seat": {
+          "title": "ユーザー単価",
+          "description": "ユーザーごとの料金プランを入力してください。",
+          "note": "月額または年額、または両方を入力できます。"
+        },
+        "section_per_license": {
+          "title": "アカウント情報",
+          "description": "このアプリのライセンス（アカウント）情報を入力してください。"
+        },
+        "select_currency": "通貨を選択",
+        "add_account": "アカウントを追加",
+        "fields": {
+          "serviceName": {
+            "label": "サービス名",
+            "placeholder": "例：Google Workspace"
+          },
+          "vendor": {
+            "label": "ベンダー",
+            "placeholder": "例：Google LLC"
+          },
+          "licenseType": {
+            "label": "ライセンス種別",
+            "placeholder": "ライセンス種別を選択"
+          },
+          "pricingType": {
+            "label": "課金方式",
+            "placeholder": "課金方式を選択"
+          },
+          "status": {
+            "placeholder": "状態を選択"
+          },
+          "category": {
+            "label": "カテゴリ",
+            "placeholder": "例：グループウェア"
+          },
+          "paymentMethod": {
+            "label": "支払方法",
+            "placeholder": "例：クレジットカード"
+          },
+          "cancellationDate": {
+            "label": "解約予定日"
+          },
+          "officialWebsite": {
+            "label": "公式サイト",
+            "placeholder": "例：https://www.google.com/workspace/"
+          },
+          "officialSupport": {
+            "label": "公式サポートページ",
+            "placeholder": "例：https://support.google.com/"
+          },
+          "perSeatMonthlyPrice": {
+            "label": "月額（任意）",
+            "placeholder": "1000"
+          },
+          "perSeatYearlyPrice": {
+            "label": "年額（任意）",
+            "placeholder": "10000"
+          },
+          "perSeatCurrency": {
+            "label": "通貨"
+          },
+          "accountId": {
+            "label": "アカウントID",
+            "placeholder": "アカウント/ライセンスのID"
+          },
+          "unitPrice": {
+            "label": "単価",
+            "placeholder": "1000"
+          },
+          "currency": {
+            "label": "通貨"
+          },
+          "billingCycle": {
+            "label": "課金周期",
+            "placeholder": "1"
+          },
+          "billingInterval": {
+            "placeholder": "単位",
+            "options": {
+              "day": "日",
+              "week": "週",
+              "month": "月",
+              "year": "年"
+            }
+          },
+          "version": {
+            "label": "バージョン",
+            "placeholder": "1.0.0"
+          },
+          "licenseKey": {
+            "label": "ライセンスキー",
+            "placeholder": "XXXX-XXXX-XXXX-XXXX"
+          }
+        }
+      }
+    },
+    "license_employees": {
+      "filter_name": "氏名で絞り込み",
+      "all_locations": "すべての拠点",
+      "table": {
+        "name": "氏名",
+        "email": "メールアドレス",
+        "location": "拠点"
+      }
+    },
+    "perpetual": {
+      "add_button": "永続ライセンスを追加",
+      "create_dialog": {
+        "title": "新規永続ライセンスの追加",
+        "description": "新しい永続ライセンスの詳細を入力してください。"
+      }
+    },
+    "gws": {
+      "title": "Google Workspace アカウント"
     },
     "inventory": {
       "title": "資産台帳",
@@ -825,6 +1049,16 @@
           "description": "棚卸結果に基づいて新しい是正措置を作成します"
         }
       }
+    }
+  },
+  "license": {
+    "pricing": {
+      "per_seat": "従量課金（ユーザー単位）",
+      "per_license": "ライセンス単位"
+    },
+    "type": {
+      "subscription": "サブスクリプション",
+      "perpetual": "永続ライセンス"
     }
   }
 }

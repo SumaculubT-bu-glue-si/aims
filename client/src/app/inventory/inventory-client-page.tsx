@@ -78,7 +78,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { FilePlus2, Laptop, Monitor, Smartphone, KeyRound, Cloud, Download, SlidersHorizontal, ArrowUp, ArrowDown, Upload, Loader, AlertTriangle, Sparkles, Trash2, ChevronDown, Search, X, RefreshCw } from "lucide-react"
+import { FilePlus2, Laptop, Monitor, Smartphone, KeyRound, Cloud, Download, SlidersHorizontal, ArrowUp, ArrowDown, Upload, Loader, AlertTriangle, Sparkles, Trash2, ChevronDown, Search, X, RefreshCw, CalendarIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useI18n } from "@/hooks/use-i18n"
 import { Textarea } from "@/components/ui/textarea"
@@ -117,8 +117,11 @@ import {
   EXPORT_COLUMN_ORDER,
   emptyFormValues 
 } from './constants';
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { enUS, ja } from "date-fns/locale"
+import { format } from "date-fns"
 type PcAsset = FrontendAsset;
-
 
 type InventoryClientPageProps = {
   initialPcs: PcAsset[];
@@ -1404,7 +1407,16 @@ export default function InventoryClientPage({
                   <div className="bg-muted/50 p-4 rounded-lg">
                     <h3 className="text-sm font-medium mb-3">{t('labels.financial_info')}</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <FormField control={form.control} name="purchaseDate" render={({ field }) => (<FormItem><FormLabel>{getDisplayName('purchaseDate')}</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                      <FormField control={form.control} name="purchaseDate" render={({ field }) => (
+                        <FormItem className="">
+                          <FormLabel>{getDisplayName('purchaseDate')}</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("h-10 w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, t('date.format'), { locale: t('date.locale') === 'en-US' ? enUS : ja }) : <span>{t('actions.pick_date')}</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" onSelect={field.onChange} initialFocus /></PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
                       <FormField control={form.control} name="purchasePrice" render={({ field }) => (<FormItem><FormLabel>{getDisplayName('purchasePrice')}</FormLabel><FormControl><Input type="text" {...field} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name="depreciationYears" render={({ field }) => (<FormItem><FormLabel>{getDisplayName('depreciationYears')}</FormLabel><FormControl><Input type="text" {...field} /></FormControl><FormMessage /></FormItem>)} />
                       <FormField control={form.control} name="depreciationDept" render={({ field }) => (<FormItem><FormLabel>{getDisplayName('depreciationDept')}</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />

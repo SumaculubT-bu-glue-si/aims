@@ -6,7 +6,7 @@
 // ============================================================================
 
 export type AssetType = 'pc' | 'monitor' | 'phone' | 'other';
-export type AssetStatus = '???' | '???' | '???' | '???' | '??' | '???' | '????' | '??(???)';
+export type AssetStatus = '利用中' | '保管中' | '故障中' | '返却済' | '廃止' | '貸出中' | '利用予約' | '保管(使用無)';
 export type EntityStatus = 'active' | 'inactive';
 export type SortDirection = 'asc' | 'desc';
 

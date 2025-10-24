@@ -64,12 +64,12 @@ export function AppSidebar() {
     const prevPathnameRef = useRef(pathname);
 
     const systems = [
-        { href: '/license', label: 'License Management', value: 'license', available: true },
-        { href: '/compliance', label: 'Compliance Management', value: 'compliance', available: true },
-        { href: '/server', label: 'Server Management', value: 'server', available: false },
-        { href: '/', label: 'PC Management', value: 'pc', available: true },
-        { href: '/router', label: 'Router Management', value: 'router', available: false },
-        { href: '/smartphone', label: 'Smartphone Management', value: 'smartphone', available: false },
+        { href: '/license', label: t('nav.systems.license'), value: 'license', available: true },
+        { href: '/compliance', label: t('nav.systems.compliance'), value: 'compliance', available: true },
+        { href: '/server', label: t('nav.systems.server'), value: 'server', available: false },
+        { href: '/', label: t('nav.systems.pc'), value: 'pc', available: true },
+        { href: '/router', label: t('nav.systems.router'), value: 'router', available: false },
+        { href: '/smartphone', label: t('nav.systems.smartphone'), value: 'smartphone', available: false },
     ];
 
     // Set selected system based on URL
@@ -129,19 +129,19 @@ export function AppSidebar() {
     ];
 
     const licenseNavItems = [
-        { href: "/license", label: "Dashboard", icon: LayoutDashboard, exact: true },
-        { href: "/license/subscriptions", label: "Subscriptions", icon: CreditCard },
-        { href: "/license/perpetual", label: "Perpetual", icon: FileText },
-        { href: "/license/employees", label: "Employees", icon: Users },
-        { href: "/license/gws", label: "Google Workspace", icon: ShieldCheck },
+        { href: "/license", label: t("nav.license_dashboard"), icon: LayoutDashboard, exact: true },
+        { href: "/license/subscriptions", label: t("nav.license_subscriptions"), icon: CreditCard },
+        { href: "/license/perpetual", label: t("nav.license_perpetual"), icon: FileText },
+        { href: "/license/employees", label: t("nav.license_employees"), icon: Users },
+        { href: "/license/gws", label: t("nav.license_gws"), icon: ShieldCheck },
     ];
 
     const complianceNavItems = [
-        { href: "/compliance", label: "Dashboard", icon: LayoutDashboard, exact: true },
-        { href: "/compliance/audits", label: "Audits", icon: ClipboardCheck },
-        { href: "/compliance/reports", label: "Reports", icon: FileText },
-        { href: "/compliance/policies", label: "Policies", icon: Shield },
-        { href: "/compliance/standards", label: "Standards", icon: Scale },
+        { href: "/compliance", label: t("nav.compliance_dashboard"), icon: LayoutDashboard, exact: true },
+        { href: "/compliance/audits", label: t("nav.compliance_audits"), icon: ClipboardCheck },
+        { href: "/compliance/reports", label: t("nav.compliance_reports"), icon: FileText },
+        { href: "/compliance/policies", label: t("nav.compliance_policies"), icon: Shield },
+        { href: "/compliance/standards", label: t("nav.compliance_standards"), icon: Scale },
     ];
 
     const getNavItems = () => {
@@ -197,7 +197,7 @@ export function AppSidebar() {
                         </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent className="w-64" align="start">
-                        <DropdownMenuLabel>Switch System</DropdownMenuLabel>
+                        <DropdownMenuLabel>{t('nav.switch_system')}</DropdownMenuLabel>
                         <DropdownMenuSeparator />
                         {systems.map((system) => (
                             <DropdownMenuItem

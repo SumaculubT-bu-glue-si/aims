@@ -7,7 +7,7 @@ import { Eye, EyeOff } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface LicenseKeyDisplayProps {
-    licenseKey?: string;
+    licenseKey?: string | null;
     className?: string;
 }
 

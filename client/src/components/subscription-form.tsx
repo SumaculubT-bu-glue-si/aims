@@ -96,8 +96,8 @@ function PricingTypeFields({ control }: { control: any }) {
         return (
             <Card>
                 <CardHeader>
-                    <CardTitle>Price Per User</CardTitle>
-                    <CardDescription>Enter the pricing plan per user.</CardDescription>
+                    <CardTitle>{t('pages.subscriptions.form.section_per_seat.title')}</CardTitle>
+                    <CardDescription>{t('pages.subscriptions.form.section_per_seat.description')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -106,9 +106,9 @@ function PricingTypeFields({ control }: { control: any }) {
                             name="perSeatMonthlyPrice"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Monthly (Optional)</FormLabel>
+                                    <FormLabel>{t('pages.subscriptions.form.fields.perSeatMonthlyPrice.label')}</FormLabel>
                                     <FormControl>
-                                        <Input type="number" placeholder="1000" {...field} />
+                                        <Input type="number" placeholder={t('pages.subscriptions.form.fields.perSeatMonthlyPrice.placeholder')} {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -119,9 +119,9 @@ function PricingTypeFields({ control }: { control: any }) {
                             name="perSeatYearlyPrice"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Yearly (Optional)</FormLabel>
+                                    <FormLabel>{t('pages.subscriptions.form.fields.perSeatYearlyPrice.label')}</FormLabel>
                                     <FormControl>
-                                        <Input type="number" placeholder="10000" {...field} />
+                                        <Input type="number" placeholder={t('pages.subscriptions.form.fields.perSeatYearlyPrice.placeholder')} {...field} />
                                     </FormControl>
                                     <FormMessage />
                                 </FormItem>
@@ -132,11 +132,11 @@ function PricingTypeFields({ control }: { control: any }) {
                             name="perSeatCurrency"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Currency <span className="text-destructive ml-1">*</span></FormLabel>
+                                    <FormLabel>{t('pages.subscriptions.form.fields.perSeatCurrency.label')} <span className="text-destructive ml-1">*</span></FormLabel>
                                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                                         <FormControl>
                                             <SelectTrigger>
-                                                <SelectValue placeholder='Select currency' />
+                                                <SelectValue placeholder={t('pages.subscriptions.form.select_currency')} />
                                             </SelectTrigger>
                                         </FormControl>
                                         <SelectContent>
@@ -149,7 +149,7 @@ function PricingTypeFields({ control }: { control: any }) {
                             )}
                         />
                     </div>
-                    <FormDescription>Enter either monthly or yearly price, or both.</FormDescription>
+                    <FormDescription>{t('pages.subscriptions.form.section_per_seat.note')}</FormDescription>
                 </CardContent>
             </Card>
         );
@@ -159,8 +159,8 @@ function PricingTypeFields({ control }: { control: any }) {
         return (
             <Card>
                 <CardHeader>
-                    <CardTitle>Account Information</CardTitle>
-                    <CardDescription>Enter the license (account) information for this app.</CardDescription>
+                    <CardTitle>{t('pages.subscriptions.form.section_per_license.title')}</CardTitle>
+                    <CardDescription>{t('pages.subscriptions.form.section_per_license.description')}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     {fields.map((field, index) => (
@@ -171,9 +171,9 @@ function PricingTypeFields({ control }: { control: any }) {
                                     name={`licenses.${index}.accountId`}
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Account ID <span className="text-destructive ml-1">*</span></FormLabel>
+                                            <FormLabel>{t('pages.subscriptions.form.fields.accountId.label')} <span className="text-destructive ml-1">*</span></FormLabel>
                                             <FormControl>
-                                                <Input placeholder='ID for the account/license' {...field} />
+                                                <Input placeholder={t('pages.subscriptions.form.fields.accountId.placeholder')} {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -184,9 +184,9 @@ function PricingTypeFields({ control }: { control: any }) {
                                     name={`licenses.${index}.unitPrice`}
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Unit Price <span className="text-destructive ml-1">*</span></FormLabel>
+                                            <FormLabel>{t('pages.subscriptions.form.fields.unitPrice.label')} <span className="text-destructive ml-1">*</span></FormLabel>
                                             <FormControl>
-                                                <Input type="number" placeholder="1000" {...field} />
+                                                <Input type="number" placeholder={t('pages.subscriptions.form.fields.unitPrice.placeholder')} {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -197,11 +197,11 @@ function PricingTypeFields({ control }: { control: any }) {
                                     name={`licenses.${index}.currency`}
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Currency <span className="text-destructive ml-1">*</span></FormLabel>
+                                            <FormLabel>{t('pages.subscriptions.form.fields.currency.label')} <span className="text-destructive ml-1">*</span></FormLabel>
                                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                                                 <FormControl>
                                                     <SelectTrigger>
-                                                        <SelectValue placeholder='Select currency' />
+                                                        <SelectValue placeholder={t('pages.subscriptions.form.select_currency')} />
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
@@ -220,9 +220,9 @@ function PricingTypeFields({ control }: { control: any }) {
                                             name={`licenses.${index}.billingCycle`}
                                             render={({ field }) => (
                                                 <FormItem>
-                                                    <FormLabel>Billing Cycle</FormLabel>
+                                                    <FormLabel>{t('pages.subscriptions.form.fields.billingCycle.label')}</FormLabel>
                                                     <FormControl>
-                                                        <Input type="number" placeholder="1" {...field} />
+                                                        <Input type="number" placeholder={t('pages.subscriptions.form.fields.billingCycle.placeholder')} {...field} />
                                                     </FormControl>
                                                     <FormMessage />
                                                 </FormItem>
@@ -237,14 +237,14 @@ function PricingTypeFields({ control }: { control: any }) {
                                                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                                                         <FormControl>
                                                             <SelectTrigger>
-                                                                <SelectValue placeholder='Unit' />
+                                                                <SelectValue placeholder={t('pages.subscriptions.form.fields.billingInterval.placeholder')} />
                                                             </SelectTrigger>
                                                         </FormControl>
                                                         <SelectContent>
-                                                            <SelectItem value="day">day</SelectItem>
-                                                            <SelectItem value="week">week</SelectItem>
-                                                            <SelectItem value="month">month</SelectItem>
-                                                            <SelectItem value="year">year</SelectItem>
+                                                            <SelectItem value="day">{t('pages.subscriptions.form.fields.billingInterval.options.day')}</SelectItem>
+                                                            <SelectItem value="week">{t('pages.subscriptions.form.fields.billingInterval.options.week')}</SelectItem>
+                                                            <SelectItem value="month">{t('pages.subscriptions.form.fields.billingInterval.options.month')}</SelectItem>
+                                                            <SelectItem value="year">{t('pages.subscriptions.form.fields.billingInterval.options.year')}</SelectItem>
                                                         </SelectContent>
                                                     </Select>
                                                     <FormMessage />
@@ -255,7 +255,7 @@ function PricingTypeFields({ control }: { control: any }) {
                                 )}
                                 <FormField control={control} name={`licenses.${index}.startDate`} render={({ field }) => (
                                     <FormItem className="">
-                                        <FormLabel>Start Date</FormLabel>
+                                        <FormLabel>{t('labels.start_date')}</FormLabel>
                                         <Popover>
                                             <PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("h-10 w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, t('date.format'), { locale: t('date.locale') === 'en-US' ? enUS : ja }) : <span>{t('actions.pick_date')}</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
                                             <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" onSelect={field.onChange} initialFocus /></PopoverContent>
@@ -265,7 +265,7 @@ function PricingTypeFields({ control }: { control: any }) {
                                 )} />
                                 <FormField control={control} name={`licenses.${index}.endDate`} render={({ field }) => (
                                     <FormItem className="">
-                                        <FormLabel>End Date</FormLabel>
+                                        <FormLabel>{t('labels.due_date')}</FormLabel>
                                         <Popover>
                                             <PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("h-10 w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, t('date.format'), { locale: t('date.locale') === 'en-US' ? enUS : ja }) : <span>{t('actions.pick_date')}</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
                                             <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" onSelect={field.onChange} initialFocus /></PopoverContent>
@@ -276,7 +276,7 @@ function PricingTypeFields({ control }: { control: any }) {
                                 {licenseType === 'subscription' && (
                                     <FormField control={control} name={`licenses.${index}.renewalDate`} render={({ field }) => (
                                         <FormItem className="">
-                                            <FormLabel>Renewal Date</FormLabel>
+                                            <FormLabel>{t('labels.expirations.renewal_date')}</FormLabel>
                                             <Popover>
                                                 <PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("h-10 w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, t('date.format'), { locale: t('date.locale') === 'en-US' ? enUS : ja }) : <span>{t('actions.pick_date')}</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
                                                 <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" onSelect={field.onChange} initialFocus /></PopoverContent>
@@ -290,9 +290,9 @@ function PricingTypeFields({ control }: { control: any }) {
                                     name={`licenses.${index}.version`}
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Version</FormLabel>
+                                            <FormLabel>{t('pages.subscriptions.form.fields.version.label')}</FormLabel>
                                             <FormControl>
-                                                <Input placeholder="1.0.0" {...field} />
+                                                <Input placeholder={t('pages.subscriptions.form.fields.version.placeholder')} {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -303,9 +303,9 @@ function PricingTypeFields({ control }: { control: any }) {
                                     name={`licenses.${index}.licenseKey`}
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>License Key</FormLabel>
+                                            <FormLabel>{t('pages.subscriptions.form.fields.licenseKey.label')}</FormLabel>
                                             <FormControl>
-                                                <Input placeholder="XXXX-XXXX-XXXX-XXXX" {...field} />
+                                                <Input placeholder={t('pages.subscriptions.form.fields.licenseKey.placeholder')} {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -330,7 +330,7 @@ function PricingTypeFields({ control }: { control: any }) {
                         variant="outline"
                         onClick={() => append({ accountId: `new-${fields.length + 1}`, unitPrice: 0, currency: 'JPY', billingCycle: 1, billingInterval: 'month' })}
                     >
-                        Add Account
+                        {t('pages.subscriptions.form.add_account')}
                     </Button>
                 </CardFooter>
             </Card>
@@ -463,8 +463,8 @@ export default function SubscriptionForm({ onSave, onCancel, mode, subscriptionI
                 <div className="space-y-8">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Basic Information</CardTitle>
-                            <CardDescription>Enter the basic information for the app to be managed.</CardDescription>
+                            <CardTitle>{t('pages.subscriptions.form.basic.title')}</CardTitle>
+                            <CardDescription>{t('pages.subscriptions.form.basic.description')}</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -473,9 +473,9 @@ export default function SubscriptionForm({ onSave, onCancel, mode, subscriptionI
                                     name="serviceName"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Service Name <span className="text-destructive ml-1">*</span></FormLabel>
+                                            <FormLabel>{t('pages.subscriptions.form.fields.serviceName.label')} <span className="text-destructive ml-1">*</span></FormLabel>
                                             <FormControl>
-                                                <Input placeholder='e.g., Google Workspace' {...field} />
+                                                <Input placeholder={t('pages.subscriptions.form.fields.serviceName.placeholder')} {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -486,9 +486,9 @@ export default function SubscriptionForm({ onSave, onCancel, mode, subscriptionI
                                     name="vendor"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Vendor</FormLabel>
+                                            <FormLabel>{t('pages.subscriptions.form.fields.vendor.label')}</FormLabel>
                                             <FormControl>
-                                                <Input placeholder='e.g., Google LLC' {...field} />
+                                                <Input placeholder={t('pages.subscriptions.form.fields.vendor.placeholder')} {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -499,16 +499,16 @@ export default function SubscriptionForm({ onSave, onCancel, mode, subscriptionI
                                     name="licenseType"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>License Type <span className="text-destructive ml-1">*</span></FormLabel>
+                                            <FormLabel>{t('pages.subscriptions.form.fields.licenseType.label')} <span className="text-destructive ml-1">*</span></FormLabel>
                                             <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!!initialData?.licenseType}>
                                                 <FormControl>
                                                     <SelectTrigger>
-                                                        <SelectValue placeholder='Select license type' />
+                                                        <SelectValue placeholder={t('pages.subscriptions.form.fields.licenseType.placeholder')} />
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
-                                                    <SelectItem value="subscription">Subscription</SelectItem>
-                                                    <SelectItem value="perpetual">Perpetual</SelectItem>
+                                                    <SelectItem value="subscription">{t('license.type.subscription')}</SelectItem>
+                                                    <SelectItem value="perpetual">{t('license.type.perpetual')}</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                             <FormMessage />
@@ -520,16 +520,16 @@ export default function SubscriptionForm({ onSave, onCancel, mode, subscriptionI
                                     name="pricingType"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Pricing Type <span className="text-destructive ml-1">*</span></FormLabel>
+                                            <FormLabel>{t('pages.subscriptions.form.fields.pricingType.label')} <span className="text-destructive ml-1">*</span></FormLabel>
                                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                                                 <FormControl>
                                                     <SelectTrigger>
-                                                        <SelectValue placeholder='Select pricing type' />
+                                                        <SelectValue placeholder={t('pages.subscriptions.form.fields.pricingType.placeholder')} />
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
-                                                    <SelectItem value="per-license">Per-License</SelectItem>
-                                                    <SelectItem value="per-seat">Per-Seat</SelectItem>
+                                                    <SelectItem value="per-license">{t('license.pricing.per_license')}</SelectItem>
+                                                    <SelectItem value="per-seat">{t('license.pricing.per_seat')}</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                             <FormMessage />
@@ -541,16 +541,16 @@ export default function SubscriptionForm({ onSave, onCancel, mode, subscriptionI
                                     name="status"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Status <span className="text-destructive ml-1">*</span></FormLabel>
+                                            <FormLabel>{t('labels.status')} <span className="text-destructive ml-1">*</span></FormLabel>
                                             <Select onValueChange={field.onChange} defaultValue={field.value}>
                                                 <FormControl>
                                                     <SelectTrigger>
-                                                        <SelectValue placeholder='Select status' />
+                                                        <SelectValue placeholder={t('pages.subscriptions.form.fields.status.placeholder')} />
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
-                                                    <SelectItem value="active">Active</SelectItem>
-                                                    <SelectItem value="inactive">Inactive</SelectItem>
+                                                    <SelectItem value="active">{t('labels.status_values.active')}</SelectItem>
+                                                    <SelectItem value="inactive">{t('labels.status_values.inactive')}</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                             <FormMessage />
@@ -562,9 +562,9 @@ export default function SubscriptionForm({ onSave, onCancel, mode, subscriptionI
                                     name="category"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Category</FormLabel>
+                                            <FormLabel>{t('pages.subscriptions.form.fields.category.label')}</FormLabel>
                                             <FormControl>
-                                                <Input placeholder='e.g., Groupware' {...field} />
+                                                <Input placeholder={t('pages.subscriptions.form.fields.category.placeholder')} {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -575,9 +575,9 @@ export default function SubscriptionForm({ onSave, onCancel, mode, subscriptionI
                                     name="paymentMethod"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Payment Method</FormLabel>
+                                            <FormLabel>{t('pages.subscriptions.form.fields.paymentMethod.label')}</FormLabel>
                                             <FormControl>
-                                                <Input placeholder='e.g., Credit Card' {...field} />
+                                                <Input placeholder={t('pages.subscriptions.form.fields.paymentMethod.placeholder')} {...field} />
                                             </FormControl>
                                             <FormMessage />
                                         </FormItem>
@@ -585,7 +585,7 @@ export default function SubscriptionForm({ onSave, onCancel, mode, subscriptionI
                                 />
                                 <FormField control={form.control} name="cancellationDate" render={({ field }) => (
                                     <FormItem className="">
-                                        <FormLabel>Cancellation Date</FormLabel>
+                                        <FormLabel>{t('pages.subscriptions.form.fields.cancellationDate.label')}</FormLabel>
                                         <Popover>
                                             <PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn("h-10 w-full justify-start text-left font-normal", !field.value && "text-muted-foreground")}>{field.value ? format(field.value, t('date.format'), { locale: t('date.locale') === 'en-US' ? enUS : ja }) : <span>{t('actions.pick_date')}</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger>
                                             <PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" onSelect={field.onChange} initialFocus /></PopoverContent>
@@ -599,9 +599,9 @@ export default function SubscriptionForm({ onSave, onCancel, mode, subscriptionI
                                 name="officialWebsite"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Official Website</FormLabel>
+                                        <FormLabel>{t('pages.subscriptions.form.fields.officialWebsite.label')}</FormLabel>
                                         <FormControl>
-                                            <Input placeholder='e.g., https://www.google.com/workspace/' {...field} />
+                                            <Input placeholder={t('pages.subscriptions.form.fields.officialWebsite.placeholder')} {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -612,9 +612,9 @@ export default function SubscriptionForm({ onSave, onCancel, mode, subscriptionI
                                 name="officialSupport"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Official Support Page</FormLabel>
+                                        <FormLabel>{t('pages.subscriptions.form.fields.officialSupport.label')}</FormLabel>
                                         <FormControl>
-                                            <Input placeholder='e.g., https://support.google.com/' {...field} />
+                                            <Input placeholder={t('pages.subscriptions.form.fields.officialSupport.placeholder')} {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -625,9 +625,9 @@ export default function SubscriptionForm({ onSave, onCancel, mode, subscriptionI
                                 name="notes"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Notes</FormLabel>
+                                        <FormLabel>{t('labels.notes')}</FormLabel>
                                         <FormControl>
-                                            <Textarea placeholder='Any additional notes...' {...field} />
+                                            <Textarea placeholder={t('labels.notes_placeholder')} {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -638,9 +638,9 @@ export default function SubscriptionForm({ onSave, onCancel, mode, subscriptionI
                     <PricingTypeFields control={form.control} />
                 </div>
                 <div className="flex justify-end space-x-2 pt-4">
-                    <Button type="button" variant="outline" onClick={handleCancel}>Cancel</Button>
+                    <Button type="button" variant="outline" onClick={handleCancel}>{t('actions.cancel')}</Button>
                     <Button type="submit" disabled={loading}>
-                        {loading ? 'Submitting...' : mode === 'create' ? 'Create' : 'Update'}
+                        {loading ? t('actions.saving') : mode === 'create' ? t('actions.create') : t('actions.update')}
                     </Button>
                 </div>
             </form>

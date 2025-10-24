@@ -85,25 +85,25 @@ function normalizeStatus(value: any): string {
   const v = value.trim();
 
   // Keep Japanese statuses as-is since frontend expects them
-  if (v === '???') return '???';
-  if (v === '??') return '??';
-  if (v === '??(???)') return '??(???)';
-  if (v === '???') return '???';
-  if (v === '???') return '???';
-  if (v === '???') return '???';
-  if (v === '???') return '???';
-  if (v === '????') return '????';
+  if (v === '返却済') return '返却済';
+  if (v === '廃止') return '廃止';
+  if (v === '保管(使用無)') return '保管(使用無)';
+  if (v === '利用中') return '利用中';
+  if (v === '保管中') return '保管中';
+  if (v === '貸出中') return '貸出中';
+  if (v === '故障中') return '故障中';
+  if (v === '利用予約') return '利用予約';
 
   // Common English variations - convert to Japanese equivalents
   const lower = v.toLowerCase();
-  if (lower === 'returned') return '???';
-  if (lower === 'abolished') return '??';
-  if (lower === 'stored - not in use') return '??(???)';
-  if (lower === 'in use') return '???';
-  if (lower === 'in storage') return '???';
-  if (lower === 'on loan') return '???';
-  if (lower === 'broken') return '???';
-  if (lower === 'reserved for use') return '????';
+  if (lower === 'returned') return '返却済';
+  if (lower === 'abolished') return '廃止';
+  if (lower === 'stored - not in use') return '保管(使用無)';
+  if (lower === 'in use') return '利用中';
+  if (lower === 'in storage') return '保管中';
+  if (lower === 'on loan') return '貸出中';
+  if (lower === 'broken') return '故障中';
+  if (lower === 'reserved for use') return '利用予約';
 
   return v; // fallback to original
 }
@@ -248,8 +248,8 @@ export const INVENTORY_QUERIES = {
 
   // Get all employees
   GET_EMPLOYEES: `
-    query GetEmployees($name: String, $first: Int = 1000) {
-      employees(name: $name, first: $first) {
+    query GetEmployees($name: String, $first: Int = 10, $page: Int = 1) {
+      employees(name: $name, first: $first, page: $page) {
         data {
           id
           employee_id
@@ -821,6 +821,10 @@ export async function createAuditPlan(auditPlanData: {
       }
     }
   `;
+
+  console.log('Creating audit plan with data:', auditPlanData);
+  console.log('Using GraphQL endpoint:', GRAPHQL_ENDPOINT);
+  console.log('Mutation:', mutation);
 
   try {
     const requestBody = {

@@ -7,9 +7,11 @@ import {
 } from '@/components/ui/sidebar';
 import { ShieldCheck } from 'lucide-react';
 import { gwsAccounts } from '@/lib/mock-data';
+import { useI18n } from '@/hooks/use-i18n';
 import GwsCard from '@/components/gws-card';
 
 export default function GWSPage() {
+    const { t } = useI18n();
     return (
         <div className="flex min-h-screen w-full bg-background">
             <SidebarInset className="container mx-auto p-4 md:p-6">
@@ -18,7 +20,7 @@ export default function GWSPage() {
                         <SidebarTrigger className="md:hidden" />
                         <h1 className="text-3xl font-bold flex items-center gap-2">
                             <ShieldCheck className="w-8 h-8" />
-                            Google Workspace Accounts
+                            {t('pages.gws.title')}
                         </h1>
                     </div>
                 </div>

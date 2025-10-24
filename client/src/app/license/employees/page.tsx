@@ -18,9 +18,11 @@ import { Pagination } from '@/components/ui/pagination';
 import { Input } from '@/components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useI18n } from '@/hooks/use-i18n';
 
 export default function EmployeeList() {
     const router = useRouter();
+    const { t } = useI18n();
 
     const [allEmployees, setAllEmployees] = useState<Employee[]>([]);
     const [employees, setEmployees] = useState<Employee[]>([]);
@@ -61,6 +63,8 @@ export default function EmployeeList() {
             if (response?.data?.employees) {
                 const list = (response.data.employees.data || []).map((emp: any): Employee => ({
                     id: emp.id,
+                    createdAt: emp.created_at || '',
+                    updatedAt: emp.updated_at || '',
                     employee_id: emp.employee_id,
                     name: emp.name,
                     email: emp.email || '',
@@ -127,7 +131,7 @@ export default function EmployeeList() {
                 <div className="p-4">
                     <div className="flex items-center gap-2">
                         <Input
-                            placeholder="Filter by name"
+                            placeholder={t('pages.license_employees.filter_name')}
                             value={nameFilter}
                             onChange={(e) => {
                                 setNameFilter(e.target.value);
@@ -146,11 +150,11 @@ export default function EmployeeList() {
                             }}
                         >
                             <SelectTrigger className="w-64">
-                                <SelectValue placeholder="All locations" />
+                                <SelectValue placeholder={t('pages.license_employees.all_locations')} />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="__ALL__">All locations</SelectItem>
-                                <SelectItem value="__NA__">N/A</SelectItem>
+                                <SelectItem value="__ALL__">{t('pages.license_employees.all_locations')}</SelectItem>
+                                <SelectItem value="__NA__">{t('common.not_applicable')}</SelectItem>
                                 {uniqueLocations.map((loc) => (
                                     <SelectItem key={loc} value={loc}>{loc}</SelectItem>
                                 ))}
@@ -162,10 +166,10 @@ export default function EmployeeList() {
                     <TableHeader>
                         <TableRow className="hover:bg-transparent">
                             <TableHead onClick={toggleNameSort} className="cursor-pointer select-none">
-                                Name {nameSortAsc ? '▲' : '▼'}
+                                {t('pages.license_employees.table.name')} {nameSortAsc ? '▲' : '▼'}
                             </TableHead>
-                            <TableHead>Email</TableHead>
-                            <TableHead>Location</TableHead>
+                            <TableHead>{t('pages.license_employees.table.email')}</TableHead>
+                            <TableHead>{t('pages.license_employees.table.location')}</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -181,7 +185,7 @@ export default function EmployeeList() {
                                 <TableRow key={employee.id} onClick={() => handleRowClick(employee.employee_id)} className="cursor-pointer">
                                     <TableCell className="font-medium">{employee.name}</TableCell>
                                     <TableCell>{employee.email}</TableCell>
-                                    <TableCell>{employee.location && employee.location.trim() ? employee.location : 'N/A'}</TableCell>
+                                    <TableCell>{employee.location && employee.location.trim() ? employee.location : t('common.not_applicable')}</TableCell>
                                 </TableRow>
                             ))}
                     </TableBody>

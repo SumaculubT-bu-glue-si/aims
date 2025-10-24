@@ -1,7 +1,6 @@
-
 'use client';
 
-import type { Subscription, Employee, SubscriptionStatus, LicenseType } from '@/lib/types/index';
+import type { Subscription, Employee, SubscriptionStatus, LicenseType } from '@/lib/types';
 import { useRouter, usePathname } from 'next/navigation';
 import {
     Table,
@@ -13,54 +12,71 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from './ui/card';
+import { useI18n } from '@/hooks/use-i18n';
 import { Progress } from './ui/progress';
 
+// Temporary UI type until unified type is wired here
+type UISubscription = any;
+
 interface SubscriptionListProps {
-    subscriptions: Subscription[];
-    employees: Employee[];
+    subscriptions: UISubscription[];
 }
 
 const USD_JPY_RATE = 150;
 
-function formatCurrency(amount: number, currency: 'JPY' | 'USD') {
+function formatCurrency(amount: number, currency: 'jpy' | 'usd') {
+    const displayCurrency = currency.toUpperCase();
     return new Intl.NumberFormat('en-US', {
         style: 'currency',
-        currency,
-        maximumFractionDigits: currency === 'JPY' ? 0 : 2,
+        currency: displayCurrency,
+        maximumFractionDigits: displayCurrency === 'JPY' ? 0 : 2,
     }).format(amount);
 };
 
-export default function SubscriptionList({ subscriptions, employees }: SubscriptionListProps) {
+export default function SubscriptionList({ subscriptions }: SubscriptionListProps) {
     const router = useRouter();
     const pathname = usePathname();
+    const { t } = useI18n();
 
     const statusMap: Record<SubscriptionStatus, { text: string; variant: 'secondary' | 'default' }> = {
-        active: { text: 'Active', variant: 'default' },
-        inactive: { text: 'Inactive', variant: 'secondary' },
+        active: { text: t('labels.status_values.active'), variant: 'default' },
+        inactive: { text: t('labels.status_values.inactive'), variant: 'secondary' },
     };
 
-    const getSubscriptionCost = (sub: Subscription) => {
+    const getSubscriptionCost = (sub: UISubscription) => {
+        // Per-seat subscriptions: compute from per-seat price * number of employees
+        if (sub.pricingType === 'per-seat') {
+            const userCount = sub.employees?.length || 0;
+            const monthly = (sub.perSeatMonthlyPrice ?? undefined);
+            const yearly = (sub.perSeatYearlyPrice ?? undefined);
+            const base = monthly ?? (yearly ? yearly / 12 : 0);
+            const currency = (sub.perSeatCurrency || 'jpy').toString().toLowerCase() as 'jpy' | 'usd';
+            const costInYen = currency === 'usd' ? base * USD_JPY_RATE : base;
+            return Math.round(userCount * costInYen);
+        }
         if (sub.licenseType === 'perpetual') {
-            return sub.accounts.reduce((total, acc) => {
+            return sub.accounts.reduce((total: number, acc: any) => {
                 const costInYen = acc.currency === 'USD' ? acc.amount * USD_JPY_RATE : acc.amount;
                 return total + costInYen;
             }, 0);
         }
 
-        if (sub.pricingType === 'per-seat' && sub.perUserPricing) {
-            const userCount = sub.assignedUsers?.length || 0;
-            const price = sub.perUserPricing.monthly || (sub.perUserPricing.yearly || 0) / 12;
-            const cost = userCount * price;
-            return sub.perUserPricing.currency === 'USD' ? cost * USD_JPY_RATE : cost;
-        }
+        return Math.round(sub.accounts.reduce((total: number, acc: any) => {
+            const hasCycle = acc.billingCycle !== undefined && acc.billingCycle !== null;
+            const hasInterval = (acc as any).billingInterval !== undefined && (acc as any).billingInterval !== null;
+            if (!hasCycle && !hasInterval) return total;
 
-        return Math.round(sub.accounts.reduce((total, acc) => {
-            if (acc.billingCycle === undefined) return total;
+            const currencyUpper = (acc.currency || 'JPY').toString().toUpperCase();
+            const costInYen = currencyUpper === 'USD' ? acc.amount * USD_JPY_RATE : acc.amount;
+            const period = typeof acc.billingCycle === 'object' && acc.billingCycle !== null
+                ? (acc.billingCycle as any).period || 1
+                : (acc.billingCycle as any) || 1;
+            const unit = typeof acc.billingCycle === 'object' && acc.billingCycle !== null
+                ? (acc.billingCycle as any).unit
+                : (acc as any).billingInterval;
 
             let monthlyCost = 0;
-            const costInYen = acc.currency === 'USD' ? acc.amount * USD_JPY_RATE : acc.amount;
-            const period = acc.billingCycle.period || 1;
-            switch (acc.billingCycle.unit) {
+            switch (unit) {
                 case 'day':
                     monthlyCost = (costInYen / period) * 30;
                     break;
@@ -73,31 +89,39 @@ export default function SubscriptionList({ subscriptions, employees }: Subscript
                 case 'year':
                     monthlyCost = costInYen / (period * 12);
                     break;
+                default:
+                    monthlyCost = costInYen; // fallback if unit missing
             }
             return total + monthlyCost;
         }, 0));
     }
 
-    const calculateUsageRate = (sub: Subscription) => {
+    const calculateUsageRate = (sub: UISubscription) => {
         if (sub.pricingType === 'per-seat') {
-            return sub.assignedUsers && sub.assignedUsers.length > 0 ? 100 : 0;
+            const total = sub.employees?.length || 0;
+            return total > 0 ? 100 : 0;
         }
         if (sub.accounts.length === 0) return 0;
-        const usedCount = sub.accounts.filter(acc => acc.assignedUser || acc.assignedDevice).length;
+        const usedCount = sub.accounts.filter((acc: any) => {
+            const assigned = !!(acc.assignedEmployee && (acc.assignedEmployee.employee_id || acc.assignedEmployee.employeeId));
+            return acc.used === true || assigned;
+        }).length;
         return Math.round((usedCount / sub.accounts.length) * 100);
     }
 
-    const getLicenseCount = (sub: Subscription) => {
+    const getLicenseCount = (sub: UISubscription) => {
         if (sub.pricingType === 'per-seat') {
-            const count = sub.assignedUsers?.length || 0;
-            return `${count} / -`;
+            const total = sub.employees?.length || 0;
+            return `${total}`;
         }
-        const usedCount = sub.accounts.filter(a => a.assignedUser || a.assignedDevice).length;
+        const usedCount = sub.accounts.filter((acc: any) => {
+            const assigned = !!(acc.assignedEmployee && (acc.assignedEmployee.employee_id || acc.assignedEmployee.employeeId));
+            return acc.used === true || assigned;
+        }).length;
         return `${usedCount} / ${sub.accounts.length}`;
     }
 
     const handleRowClick = (subId: string) => {
-        // If currently inside the license area, navigate to the license subscription detail route
         if (pathname && pathname.startsWith('/license')) {
             router.push(`/license/subscriptions/${subId}`);
             return;
@@ -112,12 +136,12 @@ export default function SubscriptionList({ subscriptions, employees }: Subscript
                 <Table>
                     <TableHeader>
                         <TableRow className="hover:bg-transparent">
-                            <TableHead>Service Name</TableHead>
-                            {licenseType === 'subscription' && <TableHead>Cost/Price</TableHead>}
-                            {licenseType === 'perpetual' && <TableHead>Price</TableHead>}
-                            <TableHead>Licenses</TableHead>
-                            <TableHead>Usage Rate</TableHead>
-                            <TableHead>Status</TableHead>
+                            <TableHead>{t('pages.subscriptions.table.service_name')}</TableHead>
+                            {licenseType === 'subscription' && <TableHead>{t('pages.subscriptions.table.cost_price')}</TableHead>}
+                            {licenseType === 'perpetual' && <TableHead>{t('pages.subscriptions.table.price')}</TableHead>}
+                            <TableHead>{t('pages.subscriptions.table.licenses')}</TableHead>
+                            <TableHead>{t('pages.subscriptions.table.usage_rate')}</TableHead>
+                            <TableHead>{t('pages.subscriptions.table.status')}</TableHead>
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -131,8 +155,8 @@ export default function SubscriptionList({ subscriptions, employees }: Subscript
                                         {sub.name}
                                     </TableCell>
                                     <TableCell>
-                                        {formatCurrency(cost, 'JPY')}
-                                        {sub.licenseType === 'subscription' && ` / month`}
+                                        {formatCurrency(cost, 'jpy')}
+                                        {sub.licenseType === 'subscription' && ` ${t('common.per_month')}`}
                                     </TableCell>
                                     <TableCell>{getLicenseCount(sub)}</TableCell>
                                     <TableCell>
@@ -146,9 +170,15 @@ export default function SubscriptionList({ subscriptions, employees }: Subscript
                                         )}
                                     </TableCell>
                                     <TableCell>
-                                        <Badge variant={statusMap[sub.status].variant}>
-                                            {statusMap[sub.status].text}
-                                        </Badge>
+                                        {(() => {
+                                            const statusKey = (sub.status as SubscriptionStatus);
+                                            const s = statusMap[statusKey];
+                                            return (
+                                                <Badge variant={s.variant}>
+                                                    {s.text}
+                                                </Badge>
+                                            );
+                                        })()}
                                     </TableCell>
                                 </TableRow>
                             )

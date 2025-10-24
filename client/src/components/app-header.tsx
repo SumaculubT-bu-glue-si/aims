@@ -39,6 +39,11 @@ const pathToTitleKey: { [key: string]: string | { key: string, isRegex: boolean 
     '/settings/system-users': 'nav.manage_system_users',
     '/settings/asset-fields': 'nav.manage_asset_fields',
     '/settings/data-import': 'nav.data_import',
+    '/license': 'nav.license_dashboard',
+    '/license/subscriptions': 'nav.license_subscriptions',
+    '/license/perpetual': 'nav.license_perpetual',
+    '/license/employees': 'nav.license_employees',
+    '/license/gws': 'pages.gws.title',
 };
 
 export function AppHeader() {
@@ -47,6 +52,9 @@ export function AppHeader() {
     const { user, signOut } = useAuth();
 
     const getTitle = (path: string) => {
+        if (path.startsWith('/audits/')) return t('nav.audits');
+        if (path.startsWith('/settings/')) return t('nav.master_data');
+
         // Prioritize exact match
         if (pathToTitleKey[path]) {
             const routeInfo = pathToTitleKey[path];
@@ -72,11 +80,6 @@ export function AppHeader() {
             const key = typeof routeInfo === 'string' ? routeInfo : routeInfo.key;
             return t(key);
         }
-
-        // Fallback for settings subpages that might not have a dedicated title
-        if (path.startsWith('/settings/')) return t('nav.master_data');
-
-        return t('nav.dashboard');
     }
 
     const title = getTitle(pathname);

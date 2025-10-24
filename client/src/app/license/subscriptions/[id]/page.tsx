@@ -18,6 +18,7 @@ import LicenseKeyDisplay from '@/components/license-key-display';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import SubscriptionForm from '@/components/subscription-form';
 import { toast } from '@/hooks/use-toast';
+import { useI18n } from '@/hooks/use-i18n';
 import { useQuery, useLazyQuery, useMutation } from "@apollo/client/react";
 import { ASSIGN_EMPLOYEE_TO_LICENSE, ASSIGN_EMPLOYEE_TO_SUB, UNASSIGN_EMPLOYEE, GET_SUBSCRIPTION, SEARCH_EMPLOYEES, MUT_DELETE_LICENSE } from "@/lib/queries";
 import { gql } from "@apollo/client";
@@ -41,15 +42,13 @@ function formatCurrency(amount: number, currency: 'jpy' | 'usd') {
 
 function getBillingCycleText(billingCycle?: BillingCycle) {
     if (!billingCycle) return '';
-
     if (billingCycle.period === 1) {
         const unitMap: Record<string, string> = {
-            day: 'Daily', week: 'Weekly', month: 'Monthly', year: 'Annually',
+            day: 'day', week: 'week', month: 'month', year: 'year',
         };
         return unitMap[billingCycle.unit];
     }
-
-    return `Every ${billingCycle.period} ${billingCycle.unit}s`;
+    return `every_${billingCycle.unit}_${billingCycle.period}`; // placeholder, not used directly when localized
 }
 
 
@@ -70,6 +69,7 @@ function EmployeeCombobox({
     selectedLicenseId?: string;
     onAssignmentUpdate?: () => void; // optional callback to refresh UI
 }) {
+    const { t } = useI18n();
     const [assignEmployeeToLicense] = useMutation(ASSIGN_EMPLOYEE_TO_LICENSE);
     const [assignEmployeeToSub] = useMutation(ASSIGN_EMPLOYEE_TO_SUB);
     const [open, setOpen] = useState(false);
@@ -146,19 +146,17 @@ function EmployeeCombobox({
             <PopoverContent className="w-[300px] p-0">
                 <Command shouldFilter={false}>
                     <CommandInput
-                        placeholder="Search employee by name..."
+                        placeholder={t('pages.subscription_detail.employee_combobox.placeholder')}
                         value={searchQuery}
                         onValueChange={handleSearch}
                     />
                     <CommandList className="max-h-[200px] overflow-y-auto">
                         {isSearching || loading ? (
-                            <div className="p-2 text-sm text-muted-foreground">Searching...</div>
+                            <div className="p-2 text-sm text-muted-foreground">{t('pages.subscription_detail.employee_combobox.searching')}</div>
                         ) : searchQuery.length < 2 ? (
-                            <div className="p-2 text-sm text-muted-foreground">
-                                Type at least 2 characters to search...
-                            </div>
+                            <div className="p-2 text-sm text-muted-foreground">{t('pages.subscription_detail.employee_combobox.min_chars')}</div>
                         ) : searchResults.length === 0 ? (
-                            <CommandEmpty>No employees found.</CommandEmpty>
+                            <CommandEmpty>{t('pages.subscription_detail.employee_combobox.no_results')}</CommandEmpty>
                         ) : (
                             <CommandGroup>
                                 {searchResults.map((employee) => (
@@ -193,6 +191,7 @@ export default function SubscriptionDetailPage() {
     const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const { t } = useI18n();
 
     const { data, loading, error, refetch } = useQuery(GET_SUBSCRIPTION, {
         variables: { id },
@@ -208,6 +207,16 @@ export default function SubscriptionDetailPage() {
     const [usageRate, setUsageRate] = useState<number>();
     const [isSubscription, setIsSubscription] = useState<boolean>();
     const [isPerSeat, setIsPerSeat] = useState<boolean>();
+    const getBillingCycleTextLocalized = (cycle?: { period: number; unit: 'day' | 'week' | 'month' | 'year' }) => {
+        if (!cycle) return '';
+        if (cycle.period === 1) {
+            return t(`pages.subscriptions.form.fields.billingInterval.options.${cycle.unit}`);
+        }
+        return t('pages.subscription_detail.every_x', {
+            count: cycle.period,
+            unit: t(`pages.subscriptions.form.fields.billingInterval.options.${cycle.unit}`),
+        });
+    };
 
     useEffect(() => {
         console.log("Fetched subscription:", data);
@@ -401,14 +410,14 @@ export default function SubscriptionDetailPage() {
                         <DialogTrigger asChild>
                             <Button variant="outline">
                                 <Edit className="mr-2 h-4 w-4" />
-                                Edit
+                                {t('actions.edit')}
                             </Button>
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
                             <DialogHeader>
-                                <DialogTitle>Edit {subscription.service_name}</DialogTitle>
+                                <DialogTitle>{t('pages.subscription_detail.edit_title', { service: subscription.service_name })}</DialogTitle>
                                 <DialogDescription>
-                                    Update the app's information below.
+                                    {t('pages.subscription_detail.edit_desc')}
                                 </DialogDescription>
                             </DialogHeader>
                             <SubscriptionForm
@@ -424,17 +433,17 @@ export default function SubscriptionDetailPage() {
                     {subscription.cancellation_date && (
                         <Badge variant="destructive" className="flex items-center gap-1">
                             <CalendarX2 className="h-3 w-3" />
-                            Cancellation Scheduled: {formatDate(subscription.cancellation_date)}
+                            {t('pages.subscription_detail.cancellation_scheduled')} {formatDate(subscription.cancellation_date)}
                         </Badge>
                     )}
                     <Badge variant={isPerSeat ? 'secondary' : 'outline'}>
-                        {isPerSeat ? 'Per-Seat' : 'Per-License'}
+                        {isPerSeat ? t('license.pricing.per_seat') : t('license.pricing.per_license')}
                     </Badge>
                     <Badge variant={subscription.license_type === 'subscription' ? 'default' : 'outline'}>
-                        {subscription.license_type === 'subscription' ? 'Subscription' : 'Perpetual'}
+                        {subscription.license_type === 'subscription' ? t('license.type.subscription') : t('license.type.perpetual')}
                     </Badge>
                     <Badge variant={subscription.status === 'active' ? 'default' : 'secondary'}>
-                        {subscription.status === 'active' ? 'Active' : 'Inactive'}
+                        {subscription.status === 'active' ? t('labels.status_values.active') : t('labels.status_values.inactive')}
                     </Badge>
                 </div>
             </div>
@@ -443,7 +452,7 @@ export default function SubscriptionDetailPage() {
                 {isSubscription && (
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Monthly Cost (JPY Equivalent)</CardTitle>
+                            <CardTitle className="text-sm font-medium">{t('pages.subscription_detail.monthly_cost_title')}</CardTitle>
                             <JapaneseYen className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
@@ -451,25 +460,25 @@ export default function SubscriptionDetailPage() {
                                 {formatCurrency(getMonthlyCostInYen(), 'jpy')}
                             </div>
                             <p className="text-xs text-muted-foreground">
-                                {isPerSeat ? 'Total for assigned users' : 'Total for all accounts'}
+                                {isPerSeat ? t('pages.subscription_detail.monthly_cost_note_per_seat') : t('pages.subscription_detail.monthly_cost_note_per_license')}
                             </p>
                         </CardContent>
                     </Card>
                 )}
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">{isPerSeat ? 'Assigned Users' : 'License Status'}</CardTitle>
+                        <CardTitle className="text-sm font-medium">{isPerSeat ? t('pages.subscription_detail.assigned_users_title') : t('pages.subscription_detail.license_status_title')}</CardTitle>
                         <Users className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold">{usedLicenseCount} {!isPerSeat && `/ ${totalLicenseCount}`}</div>
-                        <p className="text-xs text-muted-foreground">{isPerSeat ? 'Users' : 'Used / Total'}</p>
+                        <p className="text-xs text-muted-foreground">{isPerSeat ? t('pages.subscription_detail.users_label') : t('pages.subscription_detail.used_total_label')}</p>
                     </CardContent>
                 </Card>
                 {isSubscription && !isPerSeat && (
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Usage Rate</CardTitle>
+                            <CardTitle className="text-sm font-medium">{t('pages.subscription_detail.usage_rate_title')}</CardTitle>
                             <Percent className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
@@ -487,15 +496,15 @@ export default function SubscriptionDetailPage() {
                             <CardHeader>
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <CardTitle>Assigned User List</CardTitle>
-                                        <CardDescription>Employees using this service.</CardDescription>
+                                        <CardTitle>{t('pages.subscription_detail.assigned_user_list_title')}</CardTitle>
+                                        <CardDescription>{t('pages.subscription_detail.assigned_user_list_desc')}</CardDescription>
                                     </div>
                                     <EmployeeCombobox
                                         excludedEmployeeIds={subscription.employees?.map(emp => emp.employee_id) || []}
                                         triggerText={
                                             <Button variant="outline" size="sm">
                                                 <PlusCircle className="mr-2 h-4 w-4" />
-                                                Assign User
+                                                {t('pages.subscription_detail.assign_user_button')}
                                             </Button>
                                         }
                                         subscriptionId={subscription.id}
@@ -512,10 +521,10 @@ export default function SubscriptionDetailPage() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow className="hover:bg-transparent">
-                                            <TableHead>Name</TableHead>
-                                            <TableHead>Location</TableHead>
-                                            <TableHead>Assigned Date</TableHead>
-                                            <TableHead className="text-right">Actions</TableHead>
+                                            <TableHead>{t('pages.subscription_detail.table.name')}</TableHead>
+                                            <TableHead>{t('labels.location')}</TableHead>
+                                            <TableHead>{t('pages.subscription_detail.table.assigned_date')}</TableHead>
+                                            <TableHead className="text-right">{t('labels.actions')}</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -534,7 +543,7 @@ export default function SubscriptionDetailPage() {
                                             ))
                                         ) : (
                                             <TableRow>
-                                                <TableCell colSpan={4} className="text-center">No users are assigned.</TableCell>
+                                                <TableCell colSpan={4} className="text-center">{t('pages.subscription_detail.no_users_assigned')}</TableCell>
                                             </TableRow>
                                         )}
                                     </TableBody>
@@ -544,16 +553,16 @@ export default function SubscriptionDetailPage() {
                                 <Dialog open={unassignModal.open} onOpenChange={(open) => setUnassignModal(open ? unassignModal : { open: false })}>
                                     <DialogContent className="sm:max-w-[420px]">
                                         <DialogHeader>
-                                            <DialogTitle>Unassign User</DialogTitle>
+                                            <DialogTitle>{t('pages.subscription_detail.unassign_user_title')}</DialogTitle>
                                             <DialogDescription>
-                                                Are you sure you want to unassign {unassignModal.name || 'this user'} from {subscription.service_name}?
+                                                {t('pages.subscription_detail.unassign_user_confirm', { name: unassignModal.name || t('labels.userId'), service: subscription.service_name })}
                                             </DialogDescription>
                                         </DialogHeader>
                                         <div className="flex items-center justify-end gap-2 pt-2">
-                                            <Button variant="outline" onClick={() => setUnassignModal({ open: false })} disabled={isUnassigning}>Cancel</Button>
+                                            <Button variant="outline" onClick={() => setUnassignModal({ open: false })} disabled={isUnassigning}>{t('actions.cancel')}</Button>
                                             <Button variant="destructive" onClick={confirmUnassign} disabled={isUnassigning}>
                                                 {isUnassigning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                                {isUnassigning ? 'Removing...' : 'Confirm Remove'}
+                                                {isUnassigning ? t('pages.subscription_detail.removing') : t('pages.subscription_detail.confirm_remove')}
                                             </Button>
                                         </div>
                                     </DialogContent>
@@ -564,17 +573,17 @@ export default function SubscriptionDetailPage() {
                         <>
                             <Card>
                                 <CardHeader>
-                                    <CardTitle>Used License List</CardTitle>
-                                    <CardDescription>Currently used licenses and their associated employees or devices.</CardDescription>
+                                    <CardTitle>{t('pages.subscription_detail.used_license_list_title')}</CardTitle>
+                                    <CardDescription>{t('pages.subscription_detail.used_license_list_desc')}</CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     <Table>
                                         <TableHeader>
                                             <TableRow className="hover:bg-transparent">
-                                                <TableHead>Assigned To</TableHead>
-                                                <TableHead>Unit Price</TableHead>
-                                                <TableHead>End Date</TableHead>
-                                                <TableHead>License Key</TableHead>
+                                                <TableHead>{t('pages.subscription_detail.table.assigned_to')}</TableHead>
+                                                <TableHead>{t('pages.subscription_detail.table.unit_price')}</TableHead>
+                                                <TableHead>{t('labels.due_date')}</TableHead>
+                                                <TableHead>{t('pages.subscription_detail.table.license_key')}</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -594,8 +603,8 @@ export default function SubscriptionDetailPage() {
                                                             )}
                                                             {/* {detail.assignedDevice && <Monitor className="w-4 h-4 text-muted-foreground" />*/}
                                                         </TableCell>
-                                                        <TableCell>{formatCurrency(license.unit_price, license.currency)} {license.billing_cycle ? `/ ${getBillingCycleText({ period: license.billing_cycle, unit: license.billing_interval })}` : ''}</TableCell>
-                                                        <TableCell>{license.end_date ? formatDate(license.end_date) : 'N/A'}</TableCell>
+                                                        <TableCell>{formatCurrency(license.unit_price, license.currency)} {license.billing_cycle ? `/ ${getBillingCycleTextLocalized({ period: license.billing_cycle, unit: license.billing_interval })}` : ''}</TableCell>
+                                                        <TableCell>{license.end_date ? formatDate(license.end_date) : t('common.not_applicable')}</TableCell>
                                                         <TableCell>
                                                             <LicenseKeyDisplay licenseKey={license.license_key} />
                                                         </TableCell>
@@ -603,7 +612,7 @@ export default function SubscriptionDetailPage() {
                                                 ))
                                             ) : (
                                                 <TableRow>
-                                                    <TableCell colSpan={4} className="text-center">No users.</TableCell>
+                                                    <TableCell colSpan={4} className="text-center">{t('pages.subscription_detail.no_users')}</TableCell>
                                                 </TableRow>
                                             )}
                                         </TableBody>
@@ -613,18 +622,18 @@ export default function SubscriptionDetailPage() {
 
                             <Card>
                                 <CardHeader>
-                                    <CardTitle>Unused License List</CardTitle>
-                                    <CardDescription>Contracted licenses that have not yet been assigned.</CardDescription>
+                                    <CardTitle>{t('pages.subscription_detail.unused_license_list_title')}</CardTitle>
+                                    <CardDescription>{t('pages.subscription_detail.unused_license_list_desc')}</CardDescription>
                                 </CardHeader>
                                 <CardContent>
                                     <Table>
                                         <TableHeader>
                                             <TableRow className="hover:bg-transparent">
-                                                <TableHead>Account ID</TableHead>
-                                                <TableHead>Unit Price</TableHead>
-                                                <TableHead>End Date</TableHead>
-                                                <TableHead>License Key</TableHead>
-                                                <TableHead className="text-right">Actions</TableHead>
+                                                <TableHead>{t('pages.subscription_detail.table.account_id')}</TableHead>
+                                                <TableHead>{t('pages.subscription_detail.table.unit_price')}</TableHead>
+                                                <TableHead>{t('labels.due_date')}</TableHead>
+                                                <TableHead>{t('pages.subscription_detail.table.license_key')}</TableHead>
+                                                <TableHead className="text-right">{t('labels.actions')}</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -632,8 +641,8 @@ export default function SubscriptionDetailPage() {
                                                 unusedLicenses.map(license => (
                                                     <TableRow key={license.account_id}>
                                                         <TableCell className="font-medium">{license.account_id}</TableCell>
-                                                        <TableCell>{formatCurrency(license.unit_price, license.currency)} {license.billing_cycle ? `/ ${getBillingCycleText({ period: license.billing_cycle, unit: license.billing_interval })}` : ''}</TableCell>
-                                                        <TableCell>{license.end_date ? formatDate(license.end_date) : 'N/A'}</TableCell>
+                                                        <TableCell>{formatCurrency(license.unit_price, license.currency)} {license.billing_cycle ? `/ ${getBillingCycleTextLocalized({ period: license.billing_cycle, unit: license.billing_interval })}` : ''}</TableCell>
+                                                        <TableCell>{license.end_date ? formatDate(license.end_date) : t('common.not_applicable')}</TableCell>
                                                         <TableCell>
                                                             <LicenseKeyDisplay licenseKey={license.license_key} />
                                                         </TableCell>
@@ -643,8 +652,8 @@ export default function SubscriptionDetailPage() {
                                                                     onSelect={(employeeId, employeeName) => {
                                                                         // Handled inside EmployeeCombobox via ASSIGN_EMPLOYEE
                                                                         toast({
-                                                                            title: 'License Assigned',
-                                                                            description: `License has been assigned to ${employeeName}.`,
+                                                                            title: t('pages.subscription_detail.license_assigned_title'),
+                                                                            description: t('pages.subscription_detail.license_assigned_desc', { name: employeeName }),
                                                                         });
                                                                     }}
                                                                     excludedEmployeeIds={usedLicenses
@@ -654,7 +663,7 @@ export default function SubscriptionDetailPage() {
                                                                     triggerText={
                                                                         <Button variant="outline" size="sm">
                                                                             <PlusCircle className="mr-2 h-4 w-4" />
-                                                                            Assign
+                                                                            {t('pages.subscription_detail.assign_button')}
                                                                         </Button>
                                                                     }
                                                                     subscriptionId={subscription.id}
@@ -671,7 +680,7 @@ export default function SubscriptionDetailPage() {
                                                                     onClick={() => setDeleteModal({ open: true, licenseId: (license as any).id as string, accountId: license.account_id })}
                                                                 >
                                                                     <Trash2 className="mr-2 h-4 w-4" />
-                                                                    Delete
+                                                                    {t('actions.delete')}
                                                                 </Button>
                                                             </div>
                                                         </TableCell>
@@ -679,7 +688,7 @@ export default function SubscriptionDetailPage() {
                                                 ))
                                             ) : (
                                                 <TableRow>
-                                                    <TableCell colSpan={5} className="text-center">No unused licenses.</TableCell>
+                                                    <TableCell colSpan={5} className="text-center">{t('pages.subscription_detail.no_unused_licenses')}</TableCell>
                                                 </TableRow>
                                             )}
                                         </TableBody>
@@ -691,16 +700,16 @@ export default function SubscriptionDetailPage() {
                                 <Dialog open={deleteModal.open} onOpenChange={(open) => setDeleteModal(open ? deleteModal : { open: false })}>
                                     <DialogContent className="sm:max-w-[420px]">
                                         <DialogHeader>
-                                            <DialogTitle>Delete License</DialogTitle>
+                                            <DialogTitle>{t('pages.subscription_detail.delete_license_title')}</DialogTitle>
                                             <DialogDescription>
-                                                Are you sure you want to delete license {deleteModal.accountId || ''}?
+                                                {t('pages.subscription_detail.delete_license_confirm', { accountId: deleteModal.accountId || '' })}
                                             </DialogDescription>
                                         </DialogHeader>
                                         <div className="flex items-center justify-end gap-2 pt-2">
-                                            <Button variant="outline" onClick={() => setDeleteModal({ open: false })} disabled={isDeleting}>Cancel</Button>
+                                            <Button variant="outline" onClick={() => setDeleteModal({ open: false })} disabled={isDeleting}>{t('actions.cancel')}</Button>
                                             <Button variant="destructive" onClick={confirmDeleteLicense} disabled={isDeleting}>
                                                 {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                                                {isDeleting ? 'Deleting...' : 'Confirm Delete'}
+                                                {isDeleting ? t('pages.subscription_detail.deleting') : t('pages.subscription_detail.confirm_delete')}
                                             </Button>
                                         </div>
                                     </DialogContent>
@@ -712,60 +721,60 @@ export default function SubscriptionDetailPage() {
                 <div className="lg:col-span-1 space-y-6">
                     <Card>
                         <CardHeader>
-                            <CardTitle>Service Overview</CardTitle>
+                            <CardTitle>{t('pages.subscription_detail.service_overview_title')}</CardTitle>
                         </CardHeader>
                         <CardContent className="grid gap-4 text-sm">
                             <div className="flex items-center">
                                 <Building className="w-4 h-4 mr-2 text-muted-foreground" />
-                                <span className="font-semibold mr-2">Vendor:</span>
+                                <span className="font-semibold mr-2">{t('pages.subscription_detail.vendor_label')}</span>
                                 <span>{subscription.vendor || '-'}</span>
                             </div>
                             <div className="flex items-center">
                                 <Tag className="w-4 h-4 mr-2 text-muted-foreground" />
-                                <span className="font-semibold mr-2">Category:</span>
+                                <span className="font-semibold mr-2">{t('pages.subscription_detail.category_label')}</span>
                                 <Badge variant="outline">{subscription.category || '-'}</Badge>
                             </div>
                         </CardContent>
                     </Card>
                     <Card>
                         <CardHeader>
-                            <CardTitle>Contract Information</CardTitle>
+                            <CardTitle>{t('pages.subscription_detail.contract_information_title')}</CardTitle>
                         </CardHeader>
                         <CardContent className="grid gap-4 text-sm">
                             {isPerSeat && subscription.pricing_type === 'per-seat' && (
                                 <div className="flex items-center">
                                     <JapaneseYen className="w-4 h-4 mr-2 text-muted-foreground" />
-                                    <span className="font-semibold mr-2">Price per User:</span>
+                                    <span className="font-semibold mr-2">{t('pages.subscription_detail.price_per_user_label')}</span>
                                     <span>
-                                        {subscription.per_seat_monthly_price ? `${formatCurrency(subscription.per_seat_monthly_price, subscription.per_seat_currency)}/month` : ''}
-                                        {subscription.per_seat_monthly_price && subscription.per_seat_yearly_price ? ` or ` : ''}
-                                        {subscription.per_seat_yearly_price ? `${formatCurrency(subscription.per_seat_yearly_price, subscription.per_seat_currency)}/year` : ''}
+                                        {subscription.per_seat_monthly_price ? `${formatCurrency(subscription.per_seat_monthly_price, subscription.per_seat_currency)}${t('common.per_month')}` : ''}
+                                        {subscription.per_seat_monthly_price && subscription.per_seat_yearly_price ? ` ${t('common.or')} ` : ''}
+                                        {subscription.per_seat_yearly_price ? `${formatCurrency(subscription.per_seat_yearly_price, subscription.per_seat_currency)}${t('common.per_year')}` : ''}
                                     </span>
                                 </div>
                             )}
                             <div className="flex items-center">
                                 <CreditCard className="w-4 h-4 mr-2 text-muted-foreground" />
-                                <span className="font-semibold mr-2">Payment Method:</span>
+                                <span className="font-semibold mr-2">{t('pages.subscription_detail.payment_method_label')}</span>
                                 <span>{subscription.payment_method || '-'}</span>
                             </div>
                         </CardContent>
                     </Card>
                     <Card>
                         <CardHeader>
-                            <CardTitle>Related Links</CardTitle>
+                            <CardTitle>{t('pages.subscription_detail.related_links_title')}</CardTitle>
                         </CardHeader>
                         <CardContent className="grid gap-2">
                             {subscription.official_website && (
                                 <Button variant="outline" size="sm" asChild>
                                     <a href={subscription.official_website} target="_blank" rel="noopener noreferrer">
-                                        <ExternalLink className="mr-2 h-4 w-4" /> Official Website
+                                        <ExternalLink className="mr-2 h-4 w-4" /> {t('pages.subscription_detail.official_website_button')}
                                     </a>
                                 </Button>
                             )}
                             {subscription.official_support && (
                                 <Button variant="outline" size="sm" asChild>
                                     <a href={subscription.official_support} target="_blank" rel="noopener noreferrer">
-                                        <ExternalLink className="mr-2 h-4 w-4" /> Support Page
+                                        <ExternalLink className="mr-2 h-4 w-4" /> {t('pages.subscription_detail.support_page_button')}
                                     </a>
                                 </Button>
                             )}
@@ -773,10 +782,10 @@ export default function SubscriptionDetailPage() {
                     </Card>
                     <Card>
                         <CardHeader>
-                            <CardTitle>Notes</CardTitle>
+                            <CardTitle>{t('labels.notes')}</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <p className="text-sm text-muted-foreground">{subscription.notes || 'No notes available.'}</p>
+                            <p className="text-sm text-muted-foreground">{subscription.notes || t('common.no_notes_available')}</p>
                         </CardContent>
                     </Card>
                 </div>

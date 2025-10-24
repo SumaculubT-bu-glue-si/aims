@@ -11,8 +11,10 @@ import { useEffect, useState } from "react";
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from "@/hooks/use-toast";
 import { getSubscriptions } from "@/lib/graphql-client";
+import { useI18n } from "@/hooks/use-i18n";
 
 export default function SubscriptionsPage() {
+    const { t } = useI18n();
     const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
     const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
     const [loading, setLoading] = useState(false);
@@ -88,16 +90,16 @@ export default function SubscriptionsPage() {
             <div className="w-full my-4 flex justify-end">
                 <Dialog open={isSubscriptionModalOpen} onOpenChange={setIsSubscriptionModalOpen}>
                     <DialogTrigger asChild>
-                        <Button className="w-48 float-right">
+                        <Button className="whitespace-nowrap">
                             <PlusCircle className="mr-2 h-4 w-4" />
-                            Add Subscription
+                            {t('pages.subscriptions.add_button')}
                         </Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
                         <DialogHeader>
-                            <DialogTitle>Add New Subscription</DialogTitle>
+                            <DialogTitle>{t('pages.subscriptions.create_dialog.title')}</DialogTitle>
                             <DialogDescription>
-                                Fill in the details for the new subscription.
+                                {t('pages.subscriptions.create_dialog.description')}
                             </DialogDescription>
                         </DialogHeader>
                         <SubscriptionForm

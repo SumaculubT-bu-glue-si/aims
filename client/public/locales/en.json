@@ -115,6 +115,10 @@
     "entries_info": "{{startItem}} - {{endItem}} of {{totalCount}} entries",
     "no_results_found": "No results found.",
     "not_applicable": "N/A",
+    "per_month": "/ month",
+    "per_year": "/ year",
+    "or": "or",
+    "no_notes_available": "No notes available.",
     "page_in_preparation": "This page is currently in preparation.",
     "page_info": "Page {{currentPage}} of {{totalPages}}",
     "verified": "Verified"
@@ -198,6 +202,15 @@
     "inventory": "Asset Inventory",
     "user_assets": "Loan/Checkout",
     "optimize_ai": "AI Optimization",
+    "switch_system": "Switch System",
+    "systems": {
+      "license": "License Management",
+      "compliance": "Compliance Management",
+      "server": "Server Management",
+      "pc": "PC Management",
+      "router": "Router Management",
+      "smartphone": "Smartphone Management"
+    },
     "compliance": "Compliance Management",
     "audits": "Audits",
     "audit_prep": "Audit Preparation",
@@ -212,7 +225,17 @@
     "manage_system_users": "Manage System Users",
     "manage_asset_fields": "Asset Display Fields",
     "data_import": "Data Import",
-    "activity_logs": "Activity Logs"
+    "activity_logs": "Activity Logs",
+    "license_dashboard": "Dashboard",
+    "license_subscriptions": "Subscriptions",
+    "license_perpetual": "Perpetual",
+    "license_employees": "Employees",
+    "license_gws": "Google Workspace",
+    "compliance_dashboard": "Dashboard",
+    "compliance_audits": "Audits",
+    "compliance_reports": "Reports",
+    "compliance_policies": "Policies",
+    "compliance_standards": "Standards"
   },
   "header": {
     "change_language": "Change Language",
@@ -287,6 +310,10 @@
     "action": "Action",
     "assignee": "Assignee",
     "status": "Status",
+    "status_values": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
     "statuses": {
       "all_status": "All Statuses",
       "active_only": "Active Only (On Loan/In Use)",
@@ -332,6 +359,64 @@
     }
   },
   "pages": {
+    "subscription_detail": {
+      "edit_title": "Edit {{service}}",
+      "edit_desc": "Update the app's information below.",
+      "cancellation_scheduled": "Cancellation Scheduled:",
+      "monthly_cost_title": "Monthly Cost (JPY Equivalent)",
+      "monthly_cost_note_per_seat": "Total for assigned users",
+      "monthly_cost_note_per_license": "Total for all accounts",
+      "assigned_users_title": "Assigned Users",
+      "license_status_title": "License Status",
+      "users_label": "Users",
+      "used_total_label": "Used / Total",
+      "usage_rate_title": "Usage Rate",
+      "assigned_user_list_title": "Assigned User List",
+      "assigned_user_list_desc": "Employees using this service.",
+      "assign_user_button": "Assign User",
+      "table": {
+        "name": "Name",
+        "assigned_date": "Assigned Date",
+        "assigned_to": "Assigned To",
+        "unit_price": "Unit Price",
+        "license_key": "License Key",
+        "account_id": "Account ID"
+      },
+      "no_users_assigned": "No users are assigned.",
+      "unassign_user_title": "Unassign User",
+      "unassign_user_confirm": "Are you sure you want to unassign {{name}} from {{service}}?",
+      "removing": "Removing...",
+      "confirm_remove": "Confirm Remove",
+      "used_license_list_title": "Used License List",
+      "used_license_list_desc": "Currently used licenses and their associated employees or devices.",
+      "no_users": "No users.",
+      "unused_license_list_title": "Unused License List",
+      "unused_license_list_desc": "Contracted licenses that have not yet been assigned.",
+      "assign_button": "Assign",
+      "license_assigned_title": "License Assigned",
+      "license_assigned_desc": "License has been assigned to {{name}}.",
+      "no_unused_licenses": "No unused licenses.",
+      "delete_license_title": "Delete License",
+      "delete_license_confirm": "Are you sure you want to delete license {{accountId}}?",
+      "deleting": "Deleting...",
+      "confirm_delete": "Confirm Delete",
+      "service_overview_title": "Service Overview",
+      "vendor_label": "Vendor:",
+      "category_label": "Category:",
+      "contract_information_title": "Contract Information",
+      "price_per_user_label": "Price per User:",
+      "payment_method_label": "Payment Method:",
+      "related_links_title": "Related Links",
+      "official_website_button": "Official Website",
+      "support_page_button": "Support Page",
+      "employee_combobox": {
+        "placeholder": "Search employee by name...",
+        "searching": "Searching...",
+        "min_chars": "Type at least 2 characters to search...",
+        "no_results": "No employees found."
+      },
+      "every_x": "every {{count}} {{unit}}"
+    },
     "dashboard": {
       "total_assets": "Total Assets",
       "from_last_month": "+2.1% from last month",
@@ -350,6 +435,145 @@
       "cost": "Cost",
       "days": "days",
       "assets": "Assets"
+    },
+    "subscriptions": {
+      "title": "Subscriptions",
+      "description": "Active subscriptions grouped by location and project.",
+      "table": {
+        "name": "Name",
+        "type": "Type",
+        "monthly_cost": "Monthly Cost",
+        "service_name": "Service Name",
+        "cost_price": "Cost/Price",
+        "price": "Price",
+        "licenses": "Licenses",
+        "usage_rate": "Usage Rate",
+        "status": "Status"
+      },
+      "add_button": "Add Subscription",
+      "create_dialog": {
+        "title": "Add New Subscription",
+        "description": "Fill in the details for the new subscription."
+      },
+      "form": {
+        "basic": {
+          "title": "Basic Information",
+          "description": "Enter the basic information for the app to be managed."
+        },
+        "section_per_seat": {
+          "title": "Price Per User",
+          "description": "Enter the pricing plan per user.",
+          "note": "Enter either monthly or yearly price, or both."
+        },
+        "section_per_license": {
+          "title": "Account Information",
+          "description": "Enter the license (account) information for this app."
+        },
+        "select_currency": "Select currency",
+        "add_account": "Add Account",
+        "fields": {
+          "serviceName": {
+            "label": "Service Name",
+            "placeholder": "e.g., Google Workspace"
+          },
+          "vendor": {
+            "label": "Vendor",
+            "placeholder": "e.g., Google LLC"
+          },
+          "licenseType": {
+            "label": "License Type",
+            "placeholder": "Select license type"
+          },
+          "pricingType": {
+            "label": "Pricing Type",
+            "placeholder": "Select pricing type"
+          },
+          "status": {
+            "placeholder": "Select status"
+          },
+          "category": {
+            "label": "Category",
+            "placeholder": "e.g., Groupware"
+          },
+          "paymentMethod": {
+            "label": "Payment Method",
+            "placeholder": "e.g., Credit Card"
+          },
+          "cancellationDate": {
+            "label": "Cancellation Date"
+          },
+          "officialWebsite": {
+            "label": "Official Website",
+            "placeholder": "e.g., https://www.google.com/workspace/"
+          },
+          "officialSupport": {
+            "label": "Official Support Page",
+            "placeholder": "e.g., https://support.google.com/"
+          },
+          "perSeatMonthlyPrice": {
+            "label": "Monthly (Optional)",
+            "placeholder": "1000"
+          },
+          "perSeatYearlyPrice": {
+            "label": "Yearly (Optional)",
+            "placeholder": "10000"
+          },
+          "perSeatCurrency": {
+            "label": "Currency"
+          },
+          "accountId": {
+            "label": "Account ID",
+            "placeholder": "ID for the account/license"
+          },
+          "unitPrice": {
+            "label": "Unit Price",
+            "placeholder": "1000"
+          },
+          "currency": {
+            "label": "Currency"
+          },
+          "billingCycle": {
+            "label": "Billing Cycle",
+            "placeholder": "1"
+          },
+          "billingInterval": {
+            "placeholder": "Unit",
+            "options": {
+              "day": "day",
+              "week": "week",
+              "month": "month",
+              "year": "year"
+            }
+          },
+          "version": {
+            "label": "Version",
+            "placeholder": "1.0.0"
+          },
+          "licenseKey": {
+            "label": "License Key",
+            "placeholder": "XXXX-XXXX-XXXX-XXXX"
+          }
+        }
+      }
+    },
+    "license_employees": {
+      "filter_name": "Filter by name",
+      "all_locations": "All locations",
+      "table": {
+        "name": "Name",
+        "email": "Email",
+        "location": "Location"
+      }
+    },
+    "perpetual": {
+      "add_button": "Add Perpetual",
+      "create_dialog": {
+        "title": "Add New Perpetual License",
+        "description": "Fill in the details for the new perpetual license."
+      }
+    },
+    "gws": {
+      "title": "Google Workspace Accounts"
     },
     "inventory": {
       "title": "Asset Inventory",
@@ -845,6 +1069,16 @@
       },
       "formatInstruction": "Please format the response in English Markdown, using bullet points for clarity.",
       "subscriptionData": "Subscription Data:"
+    }
+  },
+  "license": {
+    "pricing": {
+      "per_seat": "Per-Seat",
+      "per_license": "Per-License"
+    },
+    "type": {
+      "subscription": "Subscription",
+      "perpetual": "Perpetual"
     }
   }
 }

@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Mail, Building } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { graphqlQuery, INVENTORY_QUERIES, getSubscriptions } from '@/lib/graphql-client';
+import { useI18n } from '@/hooks/use-i18n';
 import { Skeleton } from '@/components/ui/skeleton';
 
 function formatDate(date?: string) {
@@ -30,6 +31,7 @@ export default function EmployeeDetailPage() {
     const [subscriptions, setSubscriptions] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const { toast } = useToast();
+    const { t } = useI18n();
 
     useEffect(() => {
         // Check for flash message from other pages (e.g., after unassign)
@@ -194,12 +196,12 @@ export default function EmployeeDetailPage() {
                     <Table>
                         <TableHeader>
                             <TableRow className="hover:bg-transparent">
-                                <TableHead>App Name</TableHead>
-                                <TableHead>Pricing Type</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Assigned Date</TableHead>
-                                <TableHead>End Date</TableHead>
-                                <TableHead>Renewal Date</TableHead>
+                                <TableHead>{t('pages.subscriptions.table.service_name')}</TableHead>
+                                <TableHead>{t('labels.type')}</TableHead>
+                                <TableHead>{t('labels.status')}</TableHead>
+                                <TableHead>{t('labels.start_date')}</TableHead>
+                                <TableHead>{t('labels.due_date')}</TableHead>
+                                <TableHead>{t('labels.expirations.renewal_date')}</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -217,12 +219,12 @@ export default function EmployeeDetailPage() {
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant={sub.pricing_type === 'per-seat' ? 'secondary' : 'outline'}>
-                                                {sub.pricing_type === 'per-seat' ? 'Per-Seat' : 'Per-License'}
+                                                {sub.pricing_type === 'per-seat' ? t('license.pricing.per_seat') : t('license.pricing.per_license')}
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
                                             <Badge variant={sub.status === 'active' ? 'default' : 'secondary'}>
-                                                {sub.status === 'active' ? 'Active' : 'Inactive'}
+                                                {sub.status === 'active' ? t('labels.status_values.active') : t('labels.status_values.inactive')}
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
